@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
-import { del, put } from "@vercel/blob";
 import { readStore, writeStore } from "@/lib/store";
+import { deleteUpload, saveUpload, sanitizeFilename } from "@/lib/uploads";
 import { IMAGE_TYPES, type ImageType } from "@/lib/types";
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100);
-}
 
 export async function PATCH(
   request: Request,
@@ -32,15 +28,9 @@ export async function PATCH(
 
     const previousUrl = image.url;
     const filename = sanitizeFilename(file.name || "image");
-    const blob = await put(`images/${id}-${Date.now()}-${filename}`, file, {
-      access: "public",
-      addRandomSuffix: false,
-    });
-    image.url = blob.url;
+    image.url = await saveUpload(`${id}-${Date.now()}-${filename}`, file);
     image.uploadedAt = new Date().toISOString();
-    await del(previousUrl).catch(() => {
-      // Old blob may already be gone; ignore.
-    });
+    await deleteUpload(previousUrl);
   } else {
     let body: Record<string, unknown>;
     try {
@@ -79,9 +69,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Image not found." }, { status: 404 });
   }
 
-  await del(image.url).catch(() => {
-    // Blob may already be gone; proceed to remove it from the config regardless.
-  });
+  await deleteUpload(image.url);
 
   store.images = store.images.filter((img) => img.id !== id);
   for (const screen of store.screens) {

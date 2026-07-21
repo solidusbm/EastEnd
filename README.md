@@ -11,11 +11,12 @@ automatically.
 
 ## How it works
 
-- **Storage**: images and the small JSON config (screens + image metadata) are
-  both stored in [Vercel Blob](https://vercel.com/docs/storage/vercel-blob).
-  There is no separate database — `config.json` is a single blob that holds
-  the whole `{ images, screens }` record, which is enough at this scale (one
-  location, a handful of screens).
+- **Storage**: images live in `public/uploads/` and the small JSON config
+  (screens + image metadata) lives in `data/config.json`, both on local disk
+  — no cloud dependency, no database. This is enough at this scale (one
+  location, a handful of screens) and means the app runs fully offline.
+  Neither directory is committed to git (see `.gitignore`); back them up
+  directly on whatever machine hosts the app.
 - **Auth**: `/admin` and the `/api/admin/*` mutation routes are protected by a
   single shared password (`ADMIN_PASSWORD`) via an HMAC-signed cookie set in
   `middleware.ts`/`proxy.ts`. There are no user accounts.
@@ -31,7 +32,6 @@ Copy `.env.example` to `.env.local` and fill in:
 | Variable | Description |
 | --- | --- |
 | `ADMIN_PASSWORD` | Shared password for `/admin`. |
-| `BLOB_READ_WRITE_TOKEN` | Token for your Vercel Blob store. When deployed on Vercel with a Blob store connected to the project, this is injected automatically — you only need to set it manually for local development (`vercel env pull` or copy it from the Vercel dashboard). |
 
 ## Local development
 
@@ -44,15 +44,15 @@ Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
 `ADMIN_PASSWORD`, upload a few images, and create a screen. Then open
 `/dis/<screenId>` in another tab to see it cycle.
 
-## Deploying to Vercel
+## Deploying to a restaurant PC
 
-1. Push this repo to GitHub and import it in Vercel.
-2. Add a Blob store to the project (Storage tab → Create → Blob) — this sets
-   `BLOB_READ_WRITE_TOKEN` for you automatically.
-3. Set `ADMIN_PASSWORD` in the project's Environment Variables.
-4. Deploy. Visit `/admin` to set up screens, then point each TV's browser at
-   its `/dis/[screenId]` URL (the admin page shows the direct link for
-   each screen, with a copy button).
+Since storage is local disk rather than a cloud service, this app is meant
+to run on a dedicated PC on-site (not on Vercel/serverless hosting, which
+has a read-only, ephemeral filesystem). See
+[`deploy/README.md`](deploy/README.md) for the full step-by-step: installing
+Node, building for production, registering it as an auto-starting/
+auto-restarting Windows Service, opening the firewall for the TVs, and
+pointing each TV's browser at its `/dis/[screenId]` URL.
 
 On the TV itself: set the display URL as the browser's home page / bookmark
 and disable sleep/screensaver in the TV's settings. Older WebOS/Tizen browsers
@@ -83,7 +83,10 @@ migration needed.
 - `app/api/display/[screenId]/` — public, read-only endpoint the TV polls.
 - `lib/types.ts` — shared types, the `IMAGE_TYPES` category list, and
   per-category normalization helpers.
-- `lib/store.ts` — reads/writes `config.json` in Vercel Blob (includes the
-  legacy-screen migration).
+- `lib/store.ts` — reads/writes `data/config.json` on local disk (includes
+  the legacy-screen migration).
+- `lib/uploads.ts` — saves/deletes uploaded image files in `public/uploads/`.
 - `lib/auth.ts` / `proxy.ts` — shared-password session cookie and route
   protection.
+- `deploy/` — Windows Service install/uninstall scripts and the restaurant
+  PC setup guide.

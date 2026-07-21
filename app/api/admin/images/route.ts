@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { readStore, writeStore } from "@/lib/store";
+import { saveUpload, sanitizeFilename } from "@/lib/uploads";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 export async function GET() {
   const store = await readStore();
   return NextResponse.json({ images: store.images });
-}
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100);
 }
 
 export async function POST(request: Request) {
@@ -33,14 +29,11 @@ export async function POST(request: Request) {
 
   const id = crypto.randomUUID();
   const filename = sanitizeFilename(file.name || "image");
-  const blob = await put(`images/${id}-${filename}`, file, {
-    access: "public",
-    addRandomSuffix: false,
-  });
+  const url = await saveUpload(`${id}-${filename}`, file);
 
   const image: ImageRecord = {
     id,
-    url: blob.url,
+    url,
     type: type as ImageType,
     label: typeof label === "string" ? label : "",
     uploadedAt: new Date().toISOString(),

@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local runtime data (config + uploaded images), see lib/store.ts
+/data
+/public/uploads
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

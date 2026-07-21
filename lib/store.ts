@@ -1,4 +1,5 @@
-import { del, list, put } from "@vercel/blob";
+import { mkdir, readFile, rename, writeFile } from "fs/promises";
+import path from "path";
 import {
   DEFAULT_SCREEN_DEFAULTS,
   normalizeDurationSecondsByType,
@@ -7,15 +8,11 @@ import {
   type StoreData,
 } from "./types";
 
-// Config is stored as `config-<timestamp>-<random>.json` and each write
-// creates a brand-new blob (deleting the old one afterwards) rather than
-// overwriting one fixed pathname. The public blob CDN caches by URL and
-// ignores query strings for that decision, so overwriting one fixed URL
-// means reads can keep serving stale, pre-write content for well over its
-// nominal cache lifetime; giving every write its own never-before-seen URL
-// sidesteps that entirely. `list()` hits Blob's management API (not the
-// CDN), so it always reflects the latest write.
-const CONFIG_PREFIX = "config";
+// Config lives as a single JSON file on local disk (not committed — see
+// .gitignore) rather than a cloud store, so this app can run fully offline
+// on the machine hosting it.
+const DATA_DIR = path.join(process.cwd(), "data");
+const CONFIG_PATH = path.join(DATA_DIR, "config.json");
 
 function toPositiveInt(value: unknown, fallback: number): number {
   const num = typeof value === "number" ? value : Number(value);
@@ -24,7 +21,7 @@ function toPositiveInt(value: unknown, fallback: number): number {
 
 // Migrates pre-multi-category screens (`menuImageIds`/`foodImageIds`/
 // `menuDurationSeconds`/`foodDurationSeconds`) into the current shape so old
-// config.json blobs keep working after the data model changed.
+// config.json files keep working after the data model changed.
 function normalizeScreen(raw: Record<string, unknown>): Screen {
   const imageIdsSource = {
     ...(raw.imageIdsByType as Record<string, unknown> | undefined),
@@ -53,22 +50,16 @@ function normalizeScreen(raw: Record<string, unknown>): Screen {
   };
 }
 
-async function findLatestConfigBlob(): Promise<{ url: string; uploadedAt: Date } | null> {
-  const { blobs } = await list({ prefix: CONFIG_PREFIX, limit: 20 });
-  const matches = blobs.filter((blob) => blob.pathname.startsWith(CONFIG_PREFIX));
-  if (matches.length === 0) return null;
-  matches.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
-  return matches[0];
-}
-
 export async function readStore(): Promise<StoreData> {
-  const current = await findLatestConfigBlob();
-  if (!current) return { images: [], screens: [] };
+  let raw: string;
+  try {
+    raw = await readFile(CONFIG_PATH, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { images: [], screens: [] };
+    throw err;
+  }
 
-  const res = await fetch(current.url, { cache: "no-store" });
-  if (!res.ok) return { images: [], screens: [] };
-
-  const data = (await res.json()) as { images?: StoreData["images"]; screens?: Record<string, unknown>[] };
+  const data = JSON.parse(raw) as { images?: StoreData["images"]; screens?: Record<string, unknown>[] };
   return {
     images: data.images ?? [],
     screens: (data.screens ?? []).map(normalizeScreen),
@@ -76,17 +67,10 @@ export async function readStore(): Promise<StoreData> {
 }
 
 export async function writeStore(data: StoreData): Promise<void> {
-  const previous = await findLatestConfigBlob();
-
-  await put(`${CONFIG_PREFIX}-${Date.now()}.json`, JSON.stringify(data, null, 2), {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: "application/json",
-  });
-
-  if (previous) {
-    await del(previous.url).catch(() => {
-      // Best-effort cleanup; a leftover old version is harmless.
-    });
-  }
+  await mkdir(DATA_DIR, { recursive: true });
+  // Write to a temp file and rename over the real one so a crash mid-write
+  // (or a concurrent read) never sees a half-written config.json.
+  const tmpPath = `${CONFIG_PATH}.${process.pid}.tmp`;
+  await writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+  await rename(tmpPath, CONFIG_PATH);
 }
