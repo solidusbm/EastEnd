@@ -59,6 +59,25 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
       </header>
 
       <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Screens</h2>
+        <NewScreenForm onCreated={reloadScreens} />
+        <div className="flex flex-col gap-6">
+          {screens.length === 0 && (
+            <p className="text-sm text-zinc-500">No screens yet. Create one above.</p>
+          )}
+          {screens.map((screen) => (
+            <ScreenCard
+              key={screen.id}
+              screen={screen}
+              images={images}
+              onUpdated={reloadScreens}
+              onDeleted={reloadScreens}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Upload image</h2>
         <UploadForm onUploaded={reloadImages} />
       </section>
@@ -83,25 +102,6 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
             }}
           />
         )}
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Screens</h2>
-        <NewScreenForm onCreated={reloadScreens} />
-        <div className="flex flex-col gap-6">
-          {screens.length === 0 && (
-            <p className="text-sm text-zinc-500">No screens yet. Create one above.</p>
-          )}
-          {screens.map((screen) => (
-            <ScreenCard
-              key={screen.id}
-              screen={screen}
-              images={images}
-              onUpdated={reloadScreens}
-              onDeleted={reloadScreens}
-            />
-          ))}
-        </div>
       </section>
     </div>
   );

@@ -5,7 +5,7 @@ restaurant TVs. Staff upload images, tag them into a category (menu, food,
 location, or promo), and assign them to screens from a password-protected
 admin page. Each screen picks its images per category via a popup picker and
 has its own per-category display duration; each TV points its browser at
-`/display/[screenId]` and cycles through the categories (skipping any with no
+`/dis/[screenId]` and cycles through the categories (skipping any with no
 images or a zero-second duration) on a timer, polling for content updates
 automatically.
 
@@ -19,7 +19,7 @@ automatically.
 - **Auth**: `/admin` and the `/api/admin/*` mutation routes are protected by a
   single shared password (`ADMIN_PASSWORD`) via an HMAC-signed cookie set in
   `middleware.ts`/`proxy.ts`. There are no user accounts.
-- **Display**: `/display/[screenId]` is a full-screen client view with no
+- **Display**: `/dis/[screenId]` is a full-screen client view with no
   chrome. It polls `/api/display/[screenId]` every 45 seconds and picks up
   content/duration changes without a manual reload, crossfading between images
   as it cycles.
@@ -42,7 +42,7 @@ npm run dev
 
 Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
 `ADMIN_PASSWORD`, upload a few images, and create a screen. Then open
-`/display/<screenId>` in another tab to see it cycle.
+`/dis/<screenId>` in another tab to see it cycle.
 
 ## Deploying to Vercel
 
@@ -51,7 +51,7 @@ Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
    `BLOB_READ_WRITE_TOKEN` for you automatically.
 3. Set `ADMIN_PASSWORD` in the project's Environment Variables.
 4. Deploy. Visit `/admin` to set up screens, then point each TV's browser at
-   its `/display/[screenId]` URL (the admin page shows the direct link for
+   its `/dis/[screenId]` URL (the admin page shows the direct link for
    each screen, with a copy button).
 
 On the TV itself: set the display URL as the browser's home page / bookmark
@@ -78,7 +78,7 @@ migration needed.
 - `app/admin/` — password-protected dashboard (upload/tag/delete images,
   create/edit/delete screens). `ImagePickerModal.tsx` is the popup used to
   assign a screen's images per category.
-- `app/display/[screenId]/` — full-screen TV view.
+- `app/dis/[screenId]/` — full-screen TV view.
 - `app/api/admin/` — authenticated CRUD for images and screens.
 - `app/api/display/[screenId]/` — public, read-only endpoint the TV polls.
 - `lib/types.ts` — shared types, the `IMAGE_TYPES` category list, and

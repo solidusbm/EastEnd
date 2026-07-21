@@ -44,7 +44,7 @@ export default function ScreenCard({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prevScreen, setPrevScreen] = useState(screen);
-  const displayPath = `/display/${screen.id}`;
+  const displayPath = `/dis/${screen.id}`;
 
   if (prevScreen !== screen) {
     setPrevScreen(screen);
@@ -171,7 +171,7 @@ export default function ScreenCard({
 
         <div className="flex flex-col items-end gap-1">
           <a
-            href={`/display/${screen.id}`}
+            href={displayPath}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-blue-600 hover:underline"

@@ -135,7 +135,7 @@ export default function ImageLibrary({
               value={image.type}
               onChange={(e) => saveType(image, e.target.value as ImageType)}
               disabled={savingId === image.id}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-xs outline-none focus:border-zinc-500 disabled:opacity-50"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1 text-xs outline-none focus:border-zinc-500 disabled:opacity-50"
             >
               {IMAGE_TYPES.map((t) => (
                 <option key={t} value={t}>

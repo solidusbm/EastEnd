@@ -64,7 +64,7 @@ export default function UploadForm({ onUploaded }: { onUploaded: () => void }) {
         <select
           value={type}
           onChange={(e) => setType(e.target.value as ImageType)}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5 text-sm"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1.5 text-sm"
         >
           {IMAGE_TYPES.map((t) => (
             <option key={t} value={t}>
