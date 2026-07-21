@@ -40,6 +40,7 @@ export default function ScreenCard({
   );
   const [imageIdsByType, setImageIdsByType] = useState(screen.imageIdsByType);
   const [activePicker, setActivePicker] = useState<ImageType | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +154,12 @@ export default function ScreenCard({
     }
   }
 
+  const totalImages = IMAGE_TYPES.reduce((sum, type) => sum + imageIdsByType[type].length, 0);
+  const onlyType = IMAGE_TYPES.find((type) => isOnlyCategory(type, durationSecondsByType));
+  const summary = onlyType
+    ? `Only ${IMAGE_TYPE_LABELS[onlyType]} · ${imageIdsByType[onlyType].length} image${imageIdsByType[onlyType].length === 1 ? "" : "s"}`
+    : `${totalImages} image${totalImages === 1 ? "" : "s"} across categories`;
+
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -190,66 +197,99 @@ export default function ScreenCard({
             </button>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+          {collapsed ? "Show ▼" : "Hide ▲"}
+        </button>
       </div>
 
-      <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-        Per-image duration (s)
-        <input
-          type="number"
-          min={1}
-          value={perImageDurationSeconds}
-          onChange={(e) => setPerImageDurationSeconds(Number(e.target.value))}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-        />
-      </label>
+      {collapsed && <p className="text-xs text-zinc-500">{summary}</p>}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {IMAGE_TYPES.map((type) => (
-          <div
-            key={type}
-            className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {IMAGE_TYPE_LABELS[type]}
-              </p>
-              <label
-                className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
-                title={`Show only ${IMAGE_TYPE_LABELS[type]} on this screen`}
+      {!collapsed && (
+        <>
+          <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Per-image duration (s)
+            <input
+              type="number"
+              min={1}
+              value={perImageDurationSeconds}
+              onChange={(e) => setPerImageDurationSeconds(Number(e.target.value))}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {IMAGE_TYPES.map((type) => (
+              <div
+                key={type}
+                className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
               >
-                <input
-                  type="checkbox"
-                  checked={isOnlyCategory(type, durationSecondsByType)}
-                  onChange={() => toggleOnlyCategory(type)}
-                />
-                Only
-              </label>
-            </div>
-            <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              Duration (s)
-              <input
-                type="number"
-                min={1}
-                value={durationSecondsByType[type]}
-                onChange={(e) =>
-                  setDurationSecondsByType((prev) => ({
-                    ...prev,
-                    [type]: Number(e.target.value),
-                  }))
-                }
-                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-              />
-            </label>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    {IMAGE_TYPE_LABELS[type]}
+                  </p>
+                  <label
+                    className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+                    title={`Show only ${IMAGE_TYPE_LABELS[type]} on this screen`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isOnlyCategory(type, durationSecondsByType)}
+                      onChange={() => toggleOnlyCategory(type)}
+                    />
+                    Only
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  Duration (s)
+                  <input
+                    type="number"
+                    min={1}
+                    value={durationSecondsByType[type]}
+                    onChange={(e) =>
+                      setDurationSecondsByType((prev) => ({
+                        ...prev,
+                        [type]: Number(e.target.value),
+                      }))
+                    }
+                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setActivePicker(type)}
+                  className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Select {IMAGE_TYPE_LABELS[type]} images ({imageIdsByType[type].length})
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex items-center justify-between">
             <button
-              type="button"
-              onClick={() => setActivePicker(type)}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
             >
-              Select {IMAGE_TYPE_LABELS[type]} images ({imageIdsByType[type].length})
+              {deleting ? "Deleting…" : "Delete screen"}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save changes"}
             </button>
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
       {activePicker && (
         <ImagePickerModal
@@ -272,25 +312,6 @@ export default function ScreenCard({
           onClose={() => setActivePicker(null)}
         />
       )}
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <div className="flex items-center justify-between">
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-        >
-          {deleting ? "Deleting…" : "Delete screen"}
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-      </div>
     </div>
   );
 }
