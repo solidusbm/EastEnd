@@ -15,6 +15,10 @@ export interface ImageRecord {
   type: ImageType;
   label: string;
   uploadedAt: string;
+  /** Canva design this image is linked to, if imported/synced from Canva. */
+  canvaDesignId?: string;
+  /** When this image was last refreshed from the linked Canva design. */
+  canvaSyncedAt?: string;
 }
 
 export interface Screen {

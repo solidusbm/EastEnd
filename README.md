@@ -24,6 +24,18 @@ automatically.
   chrome. It polls `/api/display/[screenId]` every 45 seconds and picks up
   content/duration changes without a manual reload, crossfading between images
   as it cycles.
+- **GitHub backup** (optional): every uploaded/synced image is also pushed to
+  a branch in a GitHub repo via the REST Contents API — a permanent archive
+  that deleting the image in the app never touches. Disabled unless
+  `GITHUB_BACKUP_TOKEN` is set. See `lib/githubBackup.ts`.
+- **Canva sync** (optional): images can be imported from a Canva design URL
+  instead of a file upload. A background poller (`lib/canvaSync.ts`, started
+  once per server via `instrumentation.ts`) checks every 5 minutes whether a
+  linked design has changed and re-exports it automatically — Canva has no
+  "design changed" webhook, so polling is the only option. Disabled unless
+  `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET`/`CANVA_REDIRECT_URI` are set; even
+  then, each install needs a one-time "Connect Canva account" step from
+  `/admin`. See `lib/canva.ts`.
 
 ## Environment variables
 
@@ -32,6 +44,11 @@ Copy `.env.example` to `.env.local` and fill in:
 | Variable | Description |
 | --- | --- |
 | `ADMIN_PASSWORD` | Shared password for `/admin`. |
+| `GITHUB_BACKUP_TOKEN` | Optional. Fine-grained GitHub PAT with Contents: Read and write on the target repo. Leave blank to disable image backups. |
+| `GITHUB_BACKUP_REPO` | Optional. `owner/repo` to back images up to. |
+| `GITHUB_BACKUP_BRANCH` | Optional. Branch to push backups to (default `image-backups`). |
+| `CANVA_CLIENT_ID` / `CANVA_CLIENT_SECRET` | Optional. From a Canva integration registered at [canva.com/developers](https://www.canva.com/developers). Leave blank to disable Canva import/sync. |
+| `CANVA_REDIRECT_URI` | Optional. Must exactly match the redirect URL configured on the Canva integration, e.g. `http://localhost:3000/api/admin/canva/callback`. |
 
 ## Local development
 
@@ -43,6 +60,33 @@ npm run dev
 Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
 `ADMIN_PASSWORD`, upload a few images, and create a screen. Then open
 `/dis/<screenId>` in another tab to see it cycle.
+
+## Setting up Canva import/sync
+
+1. Go to [canva.com/developers](https://www.canva.com/developers), create an
+   integration, and note its **Client ID** and **Client Secret**.
+2. In the integration's settings, add a redirect URL that exactly matches
+   what you'll set as `CANVA_REDIRECT_URI` — for local dev,
+   `http://localhost:3000/api/admin/canva/callback`; for the restaurant PC,
+   swap in whatever URL staff actually use to reach `/admin` (its LAN IP or
+   `localhost` if only used on that PC).
+3. Add scopes `design:meta:read` and `design:content:read` to the
+   integration.
+4. Set `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`, and `CANVA_REDIRECT_URI` in
+   `.env.local`, then restart the app.
+5. In `/admin`, click **Connect Canva account** in the new Canva panel and
+   approve the authorization. From then on, "Import from Canva" is available
+   in the upload form, and linked images auto-refresh in the background.
+
+## Setting up GitHub image backups
+
+1. Create a GitHub [fine-grained personal access
+   token](https://github.com/settings/personal-access-tokens/new) scoped to
+   the target repo with **Contents: Read and write** permission.
+2. Set `GITHUB_BACKUP_TOKEN` and `GITHUB_BACKUP_REPO` (`owner/repo`) in
+   `.env.local`, then restart the app. Backups land in a branch named
+   `image-backups` by default (override with `GITHUB_BACKUP_BRANCH`), which
+   is created automatically on first use.
 
 ## Deploying to a restaurant PC
 
@@ -62,7 +106,8 @@ assuming desktop Chrome behavior carries over.
 ## Data model
 
 - **Image**: `id`, `url`, `type` (`"menu" | "food" | "location" | "promo"`),
-  `label` (optional, admin-only), `uploadedAt`.
+  `label` (optional, admin-only), `uploadedAt`, plus optional
+  `canvaDesignId`/`canvaSyncedAt` if imported from Canva.
 - **Screen**: `id`, `name`, `imageIdsByType` (image ids per category),
   `durationSecondsByType` (how long each category is shown per cycle, per
   category), `perImageDurationSeconds` (how long each individual image is
@@ -85,7 +130,13 @@ migration needed.
   per-category normalization helpers.
 - `lib/store.ts` — reads/writes `data/config.json` on local disk (includes
   the legacy-screen migration).
-- `lib/uploads.ts` — saves/deletes uploaded image files in `public/uploads/`.
+- `lib/uploads.ts` — saves/deletes uploaded image files in `public/uploads/`
+  (and fires off the GitHub backup on every save).
+- `lib/githubBackup.ts` — permanent image backups via the GitHub Contents API.
+- `lib/canva.ts` / `lib/canvaTokens.ts` / `lib/canvaSync.ts` — Canva Connect
+  API client (OAuth, design export), local token storage, and the background
+  sync poller. `app/api/admin/canva/` has the connect/callback/import/resync
+  routes; `app/admin/CanvaPanel.tsx` is the connection-status UI.
 - `lib/auth.ts` / `proxy.ts` — shared-password session cookie and route
   protection.
 - `deploy/` — Windows Service install/uninstall scripts and the restaurant

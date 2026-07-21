@@ -28,8 +28,15 @@ export async function PATCH(
 
     const previousUrl = image.url;
     const filename = sanitizeFilename(file.name || "image");
-    image.url = await saveUpload(`${id}-${Date.now()}-${filename}`, file);
+    image.url = await saveUpload(
+      `${id}-${Date.now()}-${filename}`,
+      Buffer.from(await file.arrayBuffer())
+    );
     image.uploadedAt = new Date().toISOString();
+    // A manual replace overrides Canva sync -- otherwise the next background
+    // sync would silently discard this replacement.
+    delete image.canvaDesignId;
+    delete image.canvaSyncedAt;
     await deleteUpload(previousUrl);
   } else {
     let body: Record<string, unknown>;
@@ -50,6 +57,10 @@ export async function PATCH(
         );
       }
       image.type = body.type as ImageType;
+    }
+    if (body.unlinkCanva === true) {
+      delete image.canvaDesignId;
+      delete image.canvaSyncedAt;
     }
   }
 

@@ -13,6 +13,7 @@ export default function ImageLibrary({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -65,6 +66,36 @@ export default function ImageLibrary({
     }
   }
 
+  async function resyncCanva(image: ImageRecord) {
+    setSyncingId(image.id);
+    try {
+      const res = await fetch(`/api/admin/canva/resync/${image.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        onChanged();
+      } else {
+        window.alert(data.error ?? "Sync failed.");
+      }
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function unlinkCanva(image: ImageRecord) {
+    if (!window.confirm(`Stop auto-syncing "${image.label || image.id}" from Canva?`)) return;
+    setSavingId(image.id);
+    try {
+      const res = await fetch(`/api/admin/images/${image.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unlinkCanva: true }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function handleDelete(image: ImageRecord) {
     const label = image.label || "this image";
     if (!window.confirm(`Delete ${label}? This also removes it from any screens using it.`)) {
@@ -97,6 +128,11 @@ export default function ImageLibrary({
               alt={image.label || image.type}
               className="h-full w-full object-cover"
             />
+            {image.canvaDesignId && (
+              <span className="absolute left-1.5 top-1.5 rounded bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
+                Canva
+              </span>
+            )}
             <button
               type="button"
               onClick={() => fileInputRefs.current[image.id]?.click()}
@@ -143,6 +179,25 @@ export default function ImageLibrary({
                 </option>
               ))}
             </select>
+            {image.canvaDesignId && (
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => resyncCanva(image)}
+                  disabled={syncingId === image.id}
+                  className="font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                >
+                  {syncingId === image.id ? "Syncing…" : "Sync now"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => unlinkCanva(image)}
+                  className="font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                >
+                  Unlink
+                </button>
+              </div>
+            )}
             <button
               onClick={() => handleDelete(image)}
               disabled={deletingId === image.id}

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
   const id = crypto.randomUUID();
   const filename = sanitizeFilename(file.name || "image");
-  const url = await saveUpload(`${id}-${filename}`, file);
+  const url = await saveUpload(`${id}-${filename}`, Buffer.from(await file.arrayBuffer()));
 
   const image: ImageRecord = {
     id,

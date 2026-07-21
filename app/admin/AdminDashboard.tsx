@@ -7,6 +7,7 @@ import UploadForm from "./UploadForm";
 import ImageLibrary from "./ImageLibrary";
 import ScreenCard from "./ScreenCard";
 import NewScreenForm from "./NewScreenForm";
+import CanvaPanel from "./CanvaPanel";
 
 interface AdminDashboardProps {
   initialImages: ImageRecord[];
@@ -76,6 +77,8 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
           ))}
         </div>
       </section>
+
+      <CanvaPanel />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Upload image</h2>

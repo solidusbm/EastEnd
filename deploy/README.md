@@ -113,6 +113,14 @@ startup page, and disable sleep/screensaver in the TV's settings. Manage
 which images each screen shows from `http://<PC-IP>:3000/admin` (or
 `http://localhost:3000/admin` from the PC itself).
 
+### 8. (Optional) Canva sync and GitHub backups
+
+Both are off by default and don't block anything above. If you want them,
+add the relevant variables from `.env.example` to `.env.local` (see the main
+[README](../README.md#setting-up-canva-importsync) for the full setup
+steps for each), then re-run `deploy\setup.bat` to rebuild and restart the
+service.
+
 ## Keeping it running reliably
 
 - In Windows power settings, disable sleep/hibernate for this PC — it needs
