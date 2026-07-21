@@ -20,9 +20,12 @@ type Message = { text: string; tone: "success" | "error" } | null;
 
 const REDIRECT_MESSAGES: Record<string, { text: string; tone: "success" | "error" }> = {
   connected: { text: "Canva account connected.", tone: "success" },
-  error: { text: "Connecting to Canva failed. Please try again.", tone: "error" },
+  error: {
+    text: "Connecting to Canva failed. Double-check the Client ID, Client Secret, and Redirect URI above, then try again.",
+    tone: "error",
+  },
   "not-configured": {
-    text: "Canva import isn't configured yet -- save your Client ID/Secret below first.",
+    text: "Canva isn't set up yet. Fill in and save the Client ID and Client Secret above, then click \"Connect Canva account\".",
     tone: "error",
   },
 };
@@ -49,6 +52,7 @@ export default function SetupPanel() {
   const [canvaRedirectUri, setCanvaRedirectUri] = useState("");
   const [canvaSaving, setCanvaSaving] = useState(false);
   const [canvaMessage, setCanvaMessage] = useState<Message>(null);
+  const [currentHost, setCurrentHost] = useState("");
 
   const [canvaStatus, setCanvaStatus] = useState<CanvaStatus | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -65,6 +69,10 @@ export default function SetupPanel() {
   }
 
   useEffect(() => {
+    // Synchronizing from window.location (a browser API, not React state/props) is
+    // exactly what an effect is for; this isn't the derived-state antipattern the rule targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCurrentHost(window.location.host);
     fetchSettings().then((settings) => {
       if (!settings) return;
       setGithubToken(settings.githubBackupToken ?? "");
@@ -83,9 +91,6 @@ export default function SetupPanel() {
     const params = new URLSearchParams(window.location.search);
     const canvaParam = params.get("canva");
     if (canvaParam && REDIRECT_MESSAGES[canvaParam]) {
-      // Synchronizing from window.location (a browser API, not React state/props) is
-      // exactly what an effect is for; this isn't the derived-state antipattern the rule targets.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRedirectMessage(REDIRECT_MESSAGES[canvaParam]);
       params.delete("canva");
       const newSearch = params.toString();
@@ -243,21 +248,34 @@ export default function SetupPanel() {
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <div>
+        <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Canva import/sync</h3>
-          <p className="text-sm text-zinc-500">
-            From an integration at{" "}
-            <a
-              href="https://www.canva.com/developers"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              canva.com/developers
-            </a>{" "}
-            with scopes <code>design:meta:read</code> and <code>design:content:read</code>, and a
-            redirect URL matching the one below exactly.
-          </p>
+          <ol className="list-decimal space-y-1 pl-4 text-sm text-zinc-500">
+            <li>
+              Go to{" "}
+              <a
+                href="https://www.canva.com/developers"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                canva.com/developers
+              </a>{" "}
+              and create a new integration.
+            </li>
+            <li>
+              Under Scopes, add <code>design:meta:read</code> and <code>design:content:read</code>.
+            </li>
+            <li>
+              Under Redirect URLs, add the exact URL shown in the &quot;Redirect URI&quot; field below
+              (copy it from there — don&apos;t retype it).
+            </li>
+            <li>
+              Copy the integration&apos;s <strong>Client ID</strong> and <strong>Client Secret</strong>{" "}
+              into the fields below and click Save.
+            </li>
+            <li>Click &quot;Connect Canva account&quot; below and approve access.</li>
+          </ol>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -267,6 +285,7 @@ export default function SetupPanel() {
               type="text"
               value={canvaClientId}
               onChange={(e) => setCanvaClientId(e.target.value)}
+              placeholder="from the integration's settings page"
               className={inputClass}
             />
           </label>
@@ -276,6 +295,7 @@ export default function SetupPanel() {
               type="password"
               value={canvaClientSecret}
               onChange={(e) => setCanvaClientSecret(e.target.value)}
+              placeholder="from the integration's settings page"
               className={inputClass}
             />
           </label>
@@ -287,6 +307,13 @@ export default function SetupPanel() {
               onChange={(e) => setCanvaRedirectUri(e.target.value)}
               className={inputClass}
             />
+            <span className="text-[11px] font-normal normal-case text-zinc-400">
+              Must match, character-for-character, a Redirect URL registered on the Canva
+              integration. Pre-filled from the address you&apos;re viewing this page at right now
+              {currentHost && ` (${currentHost})`} — if that&apos;s not the address you&apos;ll
+              actually use to reach /admin day-to-day (e.g. this looks like a dev/test URL rather
+              than the restaurant PC&apos;s real one), edit it before saving.
+            </span>
           </label>
         </div>
 
