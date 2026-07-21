@@ -4,7 +4,7 @@ import { buildAuthorizationUrl, createPkceChallenge, getCanvaConfig } from "@/li
 const PENDING_COOKIE = "canva_oauth_pending";
 
 export async function GET(request: Request) {
-  const config = getCanvaConfig();
+  const config = await getCanvaConfig();
   if (!config) {
     const url = new URL("/admin", request.url);
     url.searchParams.set("canva", "not-configured");

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { clearCanvaTokens, readCanvaTokens, writeCanvaTokens, type CanvaTokens } from "./canvaTokens";
+import { readSettings } from "./settings";
 
 // Canva Connect API — see https://www.canva.dev/docs/connect/
 const AUTHORIZE_URL = "https://www.canva.com/api/oauth/authorize";
@@ -17,16 +18,17 @@ export interface CanvaConfig {
   redirectUri: string;
 }
 
-export function getCanvaConfig(): CanvaConfig | null {
-  const clientId = process.env.CANVA_CLIENT_ID;
-  const clientSecret = process.env.CANVA_CLIENT_SECRET;
-  const redirectUri = process.env.CANVA_REDIRECT_URI;
+export async function getCanvaConfig(): Promise<CanvaConfig | null> {
+  const settings = await readSettings();
+  const clientId = settings.canvaClientId || process.env.CANVA_CLIENT_ID;
+  const clientSecret = settings.canvaClientSecret || process.env.CANVA_CLIENT_SECRET;
+  const redirectUri = settings.canvaRedirectUri || process.env.CANVA_REDIRECT_URI;
   if (!clientId || !clientSecret || !redirectUri) return null;
   return { clientId, clientSecret, redirectUri };
 }
 
-export function isCanvaConfigured(): boolean {
-  return getCanvaConfig() !== null;
+export async function isCanvaConfigured(): Promise<boolean> {
+  return (await getCanvaConfig()) !== null;
 }
 
 export async function isCanvaConnected(): Promise<boolean> {
@@ -118,7 +120,7 @@ export async function disconnectCanva(): Promise<void> {
 
 /** Returns a currently-valid access token, refreshing it first if needed. Null if not connected. */
 export async function getValidAccessToken(): Promise<string | null> {
-  const config = getCanvaConfig();
+  const config = await getCanvaConfig();
   if (!config) return null;
 
   const tokens = await readCanvaTokens();

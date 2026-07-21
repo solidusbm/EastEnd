@@ -7,7 +7,8 @@ import UploadForm from "./UploadForm";
 import ImageLibrary from "./ImageLibrary";
 import ScreenCard from "./ScreenCard";
 import NewScreenForm from "./NewScreenForm";
-import CanvaPanel from "./CanvaPanel";
+import SetupPanel from "./SetupPanel";
+import OpenUploadsFolder from "./OpenUploadsFolder";
 
 interface AdminDashboardProps {
   initialImages: ImageRecord[];
@@ -19,6 +20,7 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
   const [images, setImages] = useState<ImageRecord[]>(initialImages);
   const [screens, setScreens] = useState<Screen[]>(initialScreens);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   const reloadImages = useCallback(async () => {
     const res = await fetch("/api/admin/images", { cache: "no-store" });
@@ -78,24 +80,25 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
         </div>
       </section>
 
-      <CanvaPanel />
-
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Upload image</h2>
         <UploadForm onUploaded={reloadImages} />
       </section>
 
       <section className="flex flex-col gap-4">
-        <button
-          type="button"
-          onClick={() => setLibraryOpen((open) => !open)}
-          className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
-        >
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Image library ({images.length})
-          </h2>
-          <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
-        </button>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setLibraryOpen((open) => !open)}
+            className="flex flex-1 items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+          >
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Image library ({images.length})
+            </h2>
+            <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
+          </button>
+        </div>
+        <OpenUploadsFolder />
         {libraryOpen && (
           <ImageLibrary
             images={images}
@@ -105,6 +108,18 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
             }}
           />
         )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <button
+          type="button"
+          onClick={() => setSetupOpen((open) => !open)}
+          className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        >
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Setup</h2>
+          <span className="text-sm text-zinc-500">{setupOpen ? "Hide ▲" : "Show ▼"}</span>
+        </button>
+        {setupOpen && <SetupPanel />}
       </section>
     </div>
   );

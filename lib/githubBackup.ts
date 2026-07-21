@@ -2,6 +2,8 @@
 // the REST Contents API directly (no local git working tree/credentials
 // needed — just an HTTPS call with a token). Deleting an image in the app
 // never touches this backup; it's a one-way archive.
+import { readSettings } from "./settings";
+
 const API_BASE = "https://api.github.com";
 
 interface GithubBackupConfig {
@@ -11,9 +13,10 @@ interface GithubBackupConfig {
   branch: string;
 }
 
-function getConfig(): GithubBackupConfig | null {
-  const token = process.env.GITHUB_BACKUP_TOKEN;
-  const repoSlug = process.env.GITHUB_BACKUP_REPO;
+export async function getGithubBackupConfig(): Promise<GithubBackupConfig | null> {
+  const settings = await readSettings();
+  const token = settings.githubBackupToken || process.env.GITHUB_BACKUP_TOKEN;
+  const repoSlug = settings.githubBackupRepo || process.env.GITHUB_BACKUP_REPO;
   if (!token || !repoSlug) return null;
   const [owner, repo] = repoSlug.split("/");
   if (!owner || !repo) return null;
@@ -21,12 +24,12 @@ function getConfig(): GithubBackupConfig | null {
     token,
     owner,
     repo,
-    branch: process.env.GITHUB_BACKUP_BRANCH || "image-backups",
+    branch: settings.githubBackupBranch || process.env.GITHUB_BACKUP_BRANCH || "image-backups",
   };
 }
 
-export function isGithubBackupConfigured(): boolean {
-  return getConfig() !== null;
+export async function isGithubBackupConfigured(): Promise<boolean> {
+  return (await getGithubBackupConfig()) !== null;
 }
 
 function headers(config: GithubBackupConfig): HeadersInit {
@@ -88,7 +91,7 @@ async function getExistingFileSha(config: GithubBackupConfig, path: string): Pro
  * of a request -- fire it and log/ignore failures.
  */
 export async function backupImageToGithub(filename: string, content: Buffer): Promise<void> {
-  const config = getConfig();
+  const config = await getGithubBackupConfig();
   if (!config) return;
 
   const path = `backups/${filename}`;
@@ -111,10 +114,37 @@ export async function backupImageToGithub(filename: string, content: Buffer): Pr
   }
 }
 
-/** Fire-and-forget wrapper: never throws, just logs on failure. */
+/** Fire-and-forget wrapper: never throws, just logs on failure. No-ops if unconfigured. */
 export function backupImageToGithubBestEffort(filename: string, content: Buffer): void {
-  if (!isGithubBackupConfigured()) return;
   backupImageToGithub(filename, content).catch((err) => {
     console.error(`[github-backup] Failed to back up ${filename}:`, err);
   });
+}
+
+/** Validates a token/repo pair (as typed in the settings form, before saving) by checking repo access. */
+export async function testGithubBackupConnection(
+  token: string,
+  repoSlug: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [owner, repo] = repoSlug.split("/");
+  if (!owner || !repo) {
+    return { ok: false, error: 'Repo must be in "owner/repo" form.' };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/repos/${owner}/${repo}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "eastend-tv-signage",
+      },
+    });
+    if (res.status === 401) return { ok: false, error: "Token was rejected (invalid or expired)." };
+    if (res.status === 404) {
+      return { ok: false, error: "Repo not found, or the token can't see it (check its permissions)." };
+    }
+    if (!res.ok) return { ok: false, error: `GitHub returned ${res.status}.` };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error reaching GitHub." };
+  }
 }

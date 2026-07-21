@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const redirectTo = new URL("/admin", request.url);
 
-  const config = getCanvaConfig();
+  const config = await getCanvaConfig();
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const pendingRaw = request.headers
