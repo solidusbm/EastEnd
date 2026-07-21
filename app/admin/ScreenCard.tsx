@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  DEFAULT_DURATION_SECONDS,
   IMAGE_TYPE_LABELS,
   IMAGE_TYPES,
   type ImageRecord,
@@ -12,6 +13,13 @@ import ImagePickerModal from "./ImagePickerModal";
 
 function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
+}
+
+// A category is "the only one" when it has a nonzero duration and every
+// other category is silenced (duration 0), matching how DisplayClient
+// decides a category is unavailable.
+function isOnlyCategory(type: ImageType, durations: Record<ImageType, number>): boolean {
+  return durations[type] > 0 && IMAGE_TYPES.every((t) => t === type || durations[t] === 0);
 }
 
 export default function ScreenCard({
@@ -49,6 +57,55 @@ export default function ScreenCard({
   const imagesByType = Object.fromEntries(
     IMAGE_TYPES.map((type) => [type, images.filter((image) => image.type === type)])
   ) as Record<ImageType, ImageRecord[]>;
+
+  // Silences every other category, leaving `type` as the only one this
+  // screen cycles through.
+  function applyOnlyCategory(type: ImageType) {
+    setDurationSecondsByType((prev) => {
+      const next = { ...prev };
+      for (const t of IMAGE_TYPES) {
+        next[t] = t === type ? (prev[t] > 0 ? prev[t] : DEFAULT_DURATION_SECONDS[t]) : 0;
+      }
+      return next;
+    });
+  }
+
+  // Undoes applyOnlyCategory by giving every other category back its
+  // default duration (we don't track prior per-screen values to restore).
+  function restoreOtherCategories(exceptType: ImageType) {
+    setDurationSecondsByType((prev) => {
+      const next = { ...prev };
+      for (const t of IMAGE_TYPES) {
+        if (t !== exceptType) next[t] = DEFAULT_DURATION_SECONDS[t];
+      }
+      return next;
+    });
+  }
+
+  function toggleOnlyCategory(type: ImageType) {
+    if (isOnlyCategory(type, durationSecondsByType)) {
+      restoreOtherCategories(type);
+    } else {
+      applyOnlyCategory(type);
+    }
+  }
+
+  function isOnlyImage(type: ImageType, imageId: string): boolean {
+    return (
+      imageIdsByType[type].length === 1 &&
+      imageIdsByType[type][0] === imageId &&
+      isOnlyCategory(type, durationSecondsByType)
+    );
+  }
+
+  function toggleOnlyImage(type: ImageType, imageId: string) {
+    if (isOnlyImage(type, imageId)) {
+      restoreOtherCategories(type);
+      return;
+    }
+    setImageIdsByType((prev) => ({ ...prev, [type]: [imageId] }));
+    applyOnlyCategory(type);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -152,9 +209,22 @@ export default function ScreenCard({
             key={type}
             className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
           >
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-              {IMAGE_TYPE_LABELS[type]}
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {IMAGE_TYPE_LABELS[type]}
+              </p>
+              <label
+                className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
+                title={`Show only ${IMAGE_TYPE_LABELS[type]} on this screen`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isOnlyCategory(type, durationSecondsByType)}
+                  onChange={() => toggleOnlyCategory(type)}
+                />
+                Only
+              </label>
+            </div>
             <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
               Duration (s)
               <input
@@ -192,6 +262,13 @@ export default function ScreenCard({
               [activePicker]: toggleId(prev[activePicker], id),
             }))
           }
+          onlyImageId={
+            imageIdsByType[activePicker].length === 1 &&
+            isOnlyCategory(activePicker, durationSecondsByType)
+              ? imageIdsByType[activePicker][0]
+              : null
+          }
+          onToggleOnly={(id) => toggleOnlyImage(activePicker, id)}
           onClose={() => setActivePicker(null)}
         />
       )}

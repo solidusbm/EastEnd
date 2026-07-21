@@ -55,7 +55,12 @@ export function normalizeImageIdsByType(input: unknown): Record<ImageType, strin
   return result;
 }
 
-/** Reads `input[type]` for each known image type, falling back per-type when missing/invalid. */
+/**
+ * Reads `input[type]` for each known image type, falling back per-type when
+ * missing/invalid. 0 is a valid, meaningful value here (it's how a screen
+ * disables/silences a category, e.g. via the "only this category" shortcut)
+ * so it's preserved rather than treated as missing.
+ */
 export function normalizeDurationSecondsByType(
   input: unknown,
   fallback: Record<ImageType, number> = DEFAULT_DURATION_SECONDS
@@ -65,7 +70,7 @@ export function normalizeDurationSecondsByType(
   for (const type of IMAGE_TYPES) {
     const value = source[type];
     const num = typeof value === "number" ? value : Number(value);
-    result[type] = Number.isFinite(num) && num > 0 ? Math.round(num) : fallback[type];
+    result[type] = Number.isFinite(num) && num >= 0 ? Math.round(num) : fallback[type];
   }
   return result;
 }

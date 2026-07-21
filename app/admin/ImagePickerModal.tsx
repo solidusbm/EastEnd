@@ -8,12 +8,16 @@ export default function ImagePickerModal({
   images,
   selectedIds,
   onToggle,
+  onlyImageId,
+  onToggleOnly,
   onClose,
 }: {
   title: string;
   images: ImageRecord[];
   selectedIds: string[];
   onToggle: (id: string) => void;
+  onlyImageId: string | null;
+  onToggleOnly: (id: string) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -54,11 +58,18 @@ export default function ImagePickerModal({
               {images.map((image) => {
                 const selected = selectedIds.includes(image.id);
                 return (
-                  <button
+                  <div
                     key={image.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onToggle(image.id)}
-                    className={`flex flex-col overflow-hidden rounded-lg border-2 text-left transition-colors ${
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onToggle(image.id);
+                      }
+                    }}
+                    className={`flex cursor-pointer flex-col overflow-hidden rounded-lg border-2 text-left transition-colors ${
                       selected
                         ? "border-blue-500"
                         : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-700"
@@ -76,11 +87,24 @@ export default function ImagePickerModal({
                           ✓
                         </span>
                       )}
+                      <label
+                        className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white"
+                        title="Show only this image on the screen"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={onlyImageId === image.id}
+                          onChange={() => onToggleOnly(image.id)}
+                          className="h-3 w-3"
+                        />
+                        Only
+                      </label>
                     </div>
                     <span className="truncate px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400">
                       {image.label || image.id}
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
