@@ -27,7 +27,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* suppressHydrationWarning: some browser extensions (e.g. Feedly)
+          inject attributes like data-feedly-mini onto <body> before React
+          hydrates, which would otherwise falsely report as a hydration
+          mismatch on every page load. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }
