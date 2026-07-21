@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readStore, writeStore } from "@/lib/store";
+import { normalizeDurationSecondsByType, normalizeImageIdsByType } from "@/lib/types";
 
 export async function GET(
   _request: Request,
@@ -40,17 +41,14 @@ export async function PUT(
   if (typeof body.name === "string" && body.name.trim().length > 0) {
     screen.name = body.name.trim();
   }
-  if (Array.isArray(body.menuImageIds)) {
-    screen.menuImageIds = body.menuImageIds.filter((v): v is string => typeof v === "string");
+  if (body.imageIdsByType !== undefined) {
+    screen.imageIdsByType = normalizeImageIdsByType(body.imageIdsByType);
   }
-  if (Array.isArray(body.foodImageIds)) {
-    screen.foodImageIds = body.foodImageIds.filter((v): v is string => typeof v === "string");
-  }
-  if (body.menuDurationSeconds !== undefined) {
-    screen.menuDurationSeconds = toPositiveInt(body.menuDurationSeconds, screen.menuDurationSeconds);
-  }
-  if (body.foodDurationSeconds !== undefined) {
-    screen.foodDurationSeconds = toPositiveInt(body.foodDurationSeconds, screen.foodDurationSeconds);
+  if (body.durationSecondsByType !== undefined) {
+    screen.durationSecondsByType = normalizeDurationSecondsByType(
+      body.durationSecondsByType,
+      screen.durationSecondsByType
+    );
   }
   if (body.perImageDurationSeconds !== undefined) {
     screen.perImageDurationSeconds = toPositiveInt(

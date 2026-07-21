@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readStore } from "@/lib/store";
-import type { ImageRecord } from "@/lib/types";
+import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 export async function GET(
   _request: Request,
@@ -18,15 +18,15 @@ export async function GET(
   }
 
   const imageById = new Map<string, ImageRecord>(store.images.map((img) => [img.id, img]));
-  const menuImages = screen.menuImageIds
-    .map((id) => imageById.get(id))
-    .filter((img): img is ImageRecord => Boolean(img));
-  const foodImages = screen.foodImageIds
-    .map((id) => imageById.get(id))
-    .filter((img): img is ImageRecord => Boolean(img));
+  const imagesByType = {} as Record<ImageType, ImageRecord[]>;
+  for (const type of IMAGE_TYPES) {
+    imagesByType[type] = screen.imageIdsByType[type]
+      .map((id) => imageById.get(id))
+      .filter((img): img is ImageRecord => Boolean(img));
+  }
 
   return NextResponse.json(
-    { screen, menuImages, foodImages },
+    { screen, imagesByType },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

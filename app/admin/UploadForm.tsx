@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import type { ImageType } from "@/lib/types";
+import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageType } from "@/lib/types";
 
 export default function UploadForm({ onUploaded }: { onUploaded: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [type, setType] = useState<ImageType>("menu");
+  const [type, setType] = useState<ImageType>(IMAGE_TYPES[0]);
   const [label, setLabel] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +66,11 @@ export default function UploadForm({ onUploaded }: { onUploaded: () => void }) {
           onChange={(e) => setType(e.target.value as ImageType)}
           className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1.5 text-sm"
         >
-          <option value="menu">Menu</option>
-          <option value="food">Food photo</option>
+          {IMAGE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {IMAGE_TYPE_LABELS[t]}
+            </option>
+          ))}
         </select>
       </div>
 

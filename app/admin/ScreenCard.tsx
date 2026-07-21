@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { ImageRecord, Screen } from "@/lib/types";
+import {
+  IMAGE_TYPE_LABELS,
+  IMAGE_TYPES,
+  type ImageRecord,
+  type ImageType,
+  type Screen,
+} from "@/lib/types";
+import ImagePickerModal from "./ImagePickerModal";
 
 function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
@@ -19,13 +26,12 @@ export default function ScreenCard({
   onDeleted: () => void;
 }) {
   const [name, setName] = useState(screen.name);
-  const [menuDurationSeconds, setMenuDurationSeconds] = useState(screen.menuDurationSeconds);
-  const [foodDurationSeconds, setFoodDurationSeconds] = useState(screen.foodDurationSeconds);
+  const [durationSecondsByType, setDurationSecondsByType] = useState(screen.durationSecondsByType);
   const [perImageDurationSeconds, setPerImageDurationSeconds] = useState(
     screen.perImageDurationSeconds
   );
-  const [menuImageIds, setMenuImageIds] = useState<string[]>(screen.menuImageIds);
-  const [foodImageIds, setFoodImageIds] = useState<string[]>(screen.foodImageIds);
+  const [imageIdsByType, setImageIdsByType] = useState(screen.imageIdsByType);
+  const [activePicker, setActivePicker] = useState<ImageType | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +41,14 @@ export default function ScreenCard({
   if (prevScreen !== screen) {
     setPrevScreen(screen);
     setName(screen.name);
-    setMenuDurationSeconds(screen.menuDurationSeconds);
-    setFoodDurationSeconds(screen.foodDurationSeconds);
+    setDurationSecondsByType(screen.durationSecondsByType);
     setPerImageDurationSeconds(screen.perImageDurationSeconds);
-    setMenuImageIds(screen.menuImageIds);
-    setFoodImageIds(screen.foodImageIds);
+    setImageIdsByType(screen.imageIdsByType);
   }
 
-  const menuImages = images.filter((image) => image.type === "menu");
-  const foodImages = images.filter((image) => image.type === "food");
+  const imagesByType = Object.fromEntries(
+    IMAGE_TYPES.map((type) => [type, images.filter((image) => image.type === type)])
+  ) as Record<ImageType, ImageRecord[]>;
 
   async function handleSave() {
     setSaving(true);
@@ -54,11 +59,9 @@ export default function ScreenCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          menuDurationSeconds,
-          foodDurationSeconds,
+          durationSecondsByType,
           perImageDurationSeconds,
-          menuImageIds,
-          foodImageIds,
+          imageIdsByType,
         }),
       });
       const data = await res.json();
@@ -132,82 +135,66 @@ export default function ScreenCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Menu duration (s)
-          <input
-            type="number"
-            min={1}
-            value={menuDurationSeconds}
-            onChange={(e) => setMenuDurationSeconds(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Food duration (s)
-          <input
-            type="number"
-            min={1}
-            value={foodDurationSeconds}
-            onChange={(e) => setFoodDurationSeconds(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Per-image duration (s)
-          <input
-            type="number"
-            min={1}
-            value={perImageDurationSeconds}
-            onChange={(e) => setPerImageDurationSeconds(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-          />
-        </label>
+      <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+        Per-image duration (s)
+        <input
+          type="number"
+          min={1}
+          value={perImageDurationSeconds}
+          onChange={(e) => setPerImageDurationSeconds(Number(e.target.value))}
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+        />
+      </label>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {IMAGE_TYPES.map((type) => (
+          <div
+            key={type}
+            className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
+          >
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              {IMAGE_TYPE_LABELS[type]}
+            </p>
+            <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Duration (s)
+              <input
+                type="number"
+                min={1}
+                value={durationSecondsByType[type]}
+                onChange={(e) =>
+                  setDurationSecondsByType((prev) => ({
+                    ...prev,
+                    [type]: Number(e.target.value),
+                  }))
+                }
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setActivePicker(type)}
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              Select {IMAGE_TYPE_LABELS[type]} images ({imageIdsByType[type].length})
+            </button>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Menu images ({menuImageIds.length})
-          </p>
-          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800 p-2">
-            {menuImages.length === 0 && (
-              <p className="text-xs text-zinc-400">No menu-tagged images uploaded yet.</p>
-            )}
-            {menuImages.map((image) => (
-              <label key={image.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={menuImageIds.includes(image.id)}
-                  onChange={() => setMenuImageIds((ids) => toggleId(ids, image.id))}
-                />
-                <span className="truncate">{image.label || image.id}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Food images ({foodImageIds.length})
-          </p>
-          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-800 p-2">
-            {foodImages.length === 0 && (
-              <p className="text-xs text-zinc-400">No food-tagged images uploaded yet.</p>
-            )}
-            {foodImages.map((image) => (
-              <label key={image.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={foodImageIds.includes(image.id)}
-                  onChange={() => setFoodImageIds((ids) => toggleId(ids, image.id))}
-                />
-                <span className="truncate">{image.label || image.id}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
+      {activePicker && (
+        <ImagePickerModal
+          title={`Select ${IMAGE_TYPE_LABELS[activePicker]} images`}
+          images={imagesByType[activePicker]}
+          selectedIds={imageIdsByType[activePicker]}
+          onToggle={(id) =>
+            setImageIdsByType((prev) => ({
+              ...prev,
+              [activePicker]: toggleId(prev[activePicker], id),
+            }))
+          }
+          onClose={() => setActivePicker(null)}
+        />
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

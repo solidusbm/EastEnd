@@ -1,30 +1,42 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ImageRecord, Screen } from "@/lib/types";
+import { IMAGE_TYPES, type ImageRecord, type ImageType, type Screen } from "@/lib/types";
 
 interface DisplayData {
   screen: Screen;
-  menuImages: ImageRecord[];
-  foodImages: ImageRecord[];
+  imagesByType: Record<ImageType, ImageRecord[]>;
 }
 
-type Mode = "menu" | "food";
-
 interface CycleState {
-  mode: Mode;
+  type: ImageType;
   index: number;
   elapsed: number;
 }
 
 const POLL_INTERVAL_MS = 45_000;
 
+function isAvailable(type: ImageType, data: DisplayData): boolean {
+  return data.imagesByType[type].length > 0 && data.screen.durationSecondsByType[type] > 0;
+}
+
+// Walks the category order starting just after `from`, wrapping all the way
+// back around to `from` itself if it's the only available category.
+function nextAvailableType(from: ImageType, data: DisplayData): ImageType | null {
+  const startIndex = IMAGE_TYPES.indexOf(from);
+  for (let offset = 1; offset <= IMAGE_TYPES.length; offset++) {
+    const type = IMAGE_TYPES[(startIndex + offset) % IMAGE_TYPES.length];
+    if (isAvailable(type, data)) return type;
+  }
+  return null;
+}
+
 export default function DisplayClient({ screenId }: { screenId: string }) {
   const [data, setData] = useState<DisplayData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const dataRef = useRef<DisplayData | null>(null);
 
-  const [cycle, setCycle] = useState<CycleState>({ mode: "menu", index: 0, elapsed: 0 });
+  const [cycle, setCycle] = useState<CycleState>({ type: IMAGE_TYPES[0], index: 0, elapsed: 0 });
 
   const [layers, setLayers] = useState<[string | null, string | null]>([null, null]);
   const [activeLayer, setActiveLayer] = useState<0 | 1>(0);
@@ -73,43 +85,40 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     };
   }, [screenId]);
 
-  // Advance the menu/food cycle and per-image rotation once per second.
+  // Advance the category cycle and per-image rotation once per second.
   useEffect(() => {
     const interval = setInterval(() => {
       setCycle((prev) => {
         const current = dataRef.current;
         if (!current) return prev;
 
-        const menuAvailable = current.menuImages.length > 0 && current.screen.menuDurationSeconds > 0;
-        const foodAvailable = current.foodImages.length > 0 && current.screen.foodDurationSeconds > 0;
-        if (!menuAvailable && !foodAvailable) return prev;
+        if (!IMAGE_TYPES.some((type) => isAvailable(type, current))) return prev;
 
-        let mode = prev.mode;
-        if (mode === "menu" && !menuAvailable) mode = "food";
-        if (mode === "food" && !foodAvailable) mode = "menu";
-        if (mode !== prev.mode) return { mode, index: 0, elapsed: 0 };
+        const type = prev.type;
+        if (!isAvailable(type, current)) {
+          const next = nextAvailableType(type, current);
+          return next ? { type: next, index: 0, elapsed: 0 } : prev;
+        }
 
-        const images = mode === "menu" ? current.menuImages : current.foodImages;
-        const modeDuration =
-          mode === "menu" ? current.screen.menuDurationSeconds : current.screen.foodDurationSeconds;
+        const images = current.imagesByType[type];
+        const modeDuration = current.screen.durationSecondsByType[type];
         const perImageDuration = Math.max(1, current.screen.perImageDurationSeconds);
 
         const elapsed = prev.elapsed + 1;
         if (elapsed >= modeDuration) {
-          const otherAvailable = mode === "menu" ? foodAvailable : menuAvailable;
-          const nextMode: Mode = otherAvailable ? (mode === "menu" ? "food" : "menu") : mode;
-          return { mode: nextMode, index: 0, elapsed: 0 };
+          const next = nextAvailableType(type, current) ?? type;
+          return { type: next, index: 0, elapsed: 0 };
         }
         if (images.length > 1 && elapsed % perImageDuration === 0) {
-          return { mode, elapsed, index: (prev.index + 1) % images.length };
+          return { type, elapsed, index: (prev.index + 1) % images.length };
         }
-        return { mode, elapsed, index: prev.index };
+        return { type, elapsed, index: prev.index };
       });
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const currentImages = data ? (cycle.mode === "menu" ? data.menuImages : data.foodImages) : [];
+  const currentImages = data ? data.imagesByType[cycle.type] : [];
   const safeIndex = currentImages.length > 0 ? cycle.index % currentImages.length : 0;
   const currentUrl = currentImages[safeIndex]?.url ?? null;
 

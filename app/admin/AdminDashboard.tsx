@@ -17,6 +17,7 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
   const router = useRouter();
   const [images, setImages] = useState<ImageRecord[]>(initialImages);
   const [screens, setScreens] = useState<Screen[]>(initialScreens);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const reloadImages = useCallback(async () => {
     const res = await fetch("/api/admin/images", { cache: "no-store" });
@@ -63,10 +64,25 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Image library ({images.length})
-        </h2>
-        <ImageLibrary images={images} onDeleted={() => { reloadImages(); reloadScreens(); }} />
+        <button
+          type="button"
+          onClick={() => setLibraryOpen((open) => !open)}
+          className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        >
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            Image library ({images.length})
+          </h2>
+          <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
+        </button>
+        {libraryOpen && (
+          <ImageLibrary
+            images={images}
+            onChanged={() => {
+              reloadImages();
+              reloadScreens();
+            }}
+          />
+        )}
       </section>
 
       <section className="flex flex-col gap-4">

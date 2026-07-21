@@ -1,10 +1,13 @@
 # EastEnd TV Signage
 
 A small Next.js app that displays pre-made menu board images and food photos on
-restaurant TVs. Staff upload images and assign them to screens from a
-password-protected admin page; each TV points its browser at
-`/display/[screenId]` and cycles between "menu mode" and "food photo mode" on a
-timer, polling for content updates automatically.
+restaurant TVs. Staff upload images, tag them into a category (menu, food,
+location, or promo), and assign them to screens from a password-protected
+admin page. Each screen picks its images per category via a popup picker and
+has its own per-category display duration; each TV points its browser at
+`/display/[screenId]` and cycles through the categories (skipping any with no
+images or a zero-second duration) on a timer, polling for content updates
+automatically.
 
 ## How it works
 
@@ -58,18 +61,29 @@ assuming desktop Chrome behavior carries over.
 
 ## Data model
 
-- **Image**: `id`, `url`, `type` (`"menu" | "food"`), `label` (optional,
-  admin-only), `uploadedAt`.
-- **Screen**: `id`, `name`, `menuImageIds`, `foodImageIds`,
-  `menuDurationSeconds`, `foodDurationSeconds`, `perImageDurationSeconds`.
+- **Image**: `id`, `url`, `type` (`"menu" | "food" | "location" | "promo"`),
+  `label` (optional, admin-only), `uploadedAt`.
+- **Screen**: `id`, `name`, `imageIdsByType` (image ids per category),
+  `durationSecondsByType` (how long each category is shown per cycle, per
+  category), `perImageDurationSeconds` (how long each individual image is
+  shown before advancing to the next one in the same category).
+
+Screens saved by an older version of this app (with `menuImageIds` /
+`foodImageIds` / `menuDurationSeconds` / `foodDurationSeconds`) are migrated
+to the current shape automatically the next time they're read — no manual
+migration needed.
 
 ## Project structure
 
 - `app/admin/` — password-protected dashboard (upload/tag/delete images,
-  create/edit/delete screens).
+  create/edit/delete screens). `ImagePickerModal.tsx` is the popup used to
+  assign a screen's images per category.
 - `app/display/[screenId]/` — full-screen TV view.
 - `app/api/admin/` — authenticated CRUD for images and screens.
 - `app/api/display/[screenId]/` — public, read-only endpoint the TV polls.
-- `lib/store.ts` — reads/writes `config.json` in Vercel Blob.
+- `lib/types.ts` — shared types, the `IMAGE_TYPES` category list, and
+  per-category normalization helpers.
+- `lib/store.ts` — reads/writes `config.json` in Vercel Blob (includes the
+  legacy-screen migration).
 - `lib/auth.ts` / `proxy.ts` — shared-password session cookie and route
   protection.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { readStore, writeStore } from "@/lib/store";
-import type { ImageRecord, ImageType } from "@/lib/types";
+import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 export async function GET() {
   const store = await readStore();
@@ -21,8 +21,11 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing file." }, { status: 400 });
   }
-  if (type !== "menu" && type !== "food") {
-    return NextResponse.json({ error: "type must be 'menu' or 'food'." }, { status: 400 });
+  if (typeof type !== "string" || !IMAGE_TYPES.includes(type as ImageType)) {
+    return NextResponse.json(
+      { error: `type must be one of: ${IMAGE_TYPES.join(", ")}.` },
+      { status: 400 }
+    );
   }
   if (!file.type.startsWith("image/")) {
     return NextResponse.json({ error: "Uploaded file must be an image." }, { status: 400 });

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { readStore, writeStore } from "@/lib/store";
-import { DEFAULT_SCREEN_DEFAULTS, type Screen } from "@/lib/types";
+import {
+  DEFAULT_SCREEN_DEFAULTS,
+  normalizeDurationSecondsByType,
+  normalizeImageIdsByType,
+  type Screen,
+} from "@/lib/types";
 
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]{1,50}$/;
 
@@ -43,19 +48,10 @@ export async function POST(request: Request) {
   const screen: Screen = {
     id,
     name: name.trim(),
-    menuImageIds: Array.isArray(body.menuImageIds)
-      ? body.menuImageIds.filter((v): v is string => typeof v === "string")
-      : [],
-    foodImageIds: Array.isArray(body.foodImageIds)
-      ? body.foodImageIds.filter((v): v is string => typeof v === "string")
-      : [],
-    menuDurationSeconds: toPositiveInt(
-      body.menuDurationSeconds,
-      DEFAULT_SCREEN_DEFAULTS.menuDurationSeconds
-    ),
-    foodDurationSeconds: toPositiveInt(
-      body.foodDurationSeconds,
-      DEFAULT_SCREEN_DEFAULTS.foodDurationSeconds
+    imageIdsByType: normalizeImageIdsByType(body.imageIdsByType),
+    durationSecondsByType: normalizeDurationSecondsByType(
+      body.durationSecondsByType,
+      DEFAULT_SCREEN_DEFAULTS.durationSecondsByType
     ),
     perImageDurationSeconds: toPositiveInt(
       body.perImageDurationSeconds,
