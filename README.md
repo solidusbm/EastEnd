@@ -48,11 +48,11 @@ Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
 
 Since storage is local disk rather than a cloud service, this app is meant
 to run on a dedicated PC on-site (not on Vercel/serverless hosting, which
-has a read-only, ephemeral filesystem). See
-[`deploy/README.md`](deploy/README.md) for the full step-by-step: installing
-Node, building for production, registering it as an auto-starting/
-auto-restarting Windows Service, opening the firewall for the TVs, and
-pointing each TV's browser at its `/dis/[screenId]` URL.
+has a read-only, ephemeral filesystem). Copy the project onto the PC and
+double-click `deploy/setup.bat` — it installs Node if needed, builds for
+production, registers an auto-starting/auto-restarting Windows Service, and
+opens the firewall for the TVs. See [`deploy/README.md`](deploy/README.md)
+for the full walkthrough (including doing each step manually).
 
 On the TV itself: set the display URL as the browser's home page / bookmark
 and disable sleep/screensaver in the TV's settings. Older WebOS/Tizen browsers

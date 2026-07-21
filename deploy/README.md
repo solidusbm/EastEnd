@@ -6,19 +6,40 @@ Vercel account or internet connection needed once it's set up. These steps
 turn a Windows PC into a dedicated, always-on signage server that TVs on the
 restaurant's network point their browsers at.
 
-## 1. Get Node.js onto the PC
+## Quick setup (recommended)
+
+1. Copy this whole project folder onto the PC, e.g. to `C:\EastEndSignage`
+   (zip it up and copy via USB drive, or `git clone` if the PC has git and
+   access to the repo).
+2. If migrating from an earlier Vercel-hosted version, copy its old
+   `data/config.json` and `public/uploads/` contents into this folder's
+   `data/` and `public/uploads/` first. Skip this for a fresh setup.
+3. Double-click **`deploy\setup.bat`**. It'll prompt for admin permission
+   (needed to install the Windows Service and firewall rule), then runs
+   through everything below automatically: installs Node.js if missing,
+   `npm install`, asks for an admin password on first run, builds for
+   production, registers/restarts the `EastEndTVSignage` Windows Service,
+   opens the firewall, and prints the LAN URLs to use.
+
+Re-run `setup.bat` any time you copy in an updated version of the app — it
+rebuilds and restarts the service instead of reinstalling from scratch, and
+won't ask for the admin password again once it's set.
+
+If double-clicking is blocked or you'd rather run it from a terminal
+yourself: open PowerShell **as Administrator**, `cd` into the project
+folder, and run `powershell -ExecutionPolicy Bypass -File deploy\setup.ps1`.
+
+## Manual setup (what the script above does, step by step)
+
+Useful if you want to understand or troubleshoot a step individually.
+
+### 1. Get Node.js onto the PC
 
 Download and install the **LTS** version from https://nodejs.org (or, if
 `winget` is available: `winget install OpenJS.NodeJS.LTS`). Restart the
 terminal after installing so `node`/`npm` are on PATH.
 
-## 2. Copy the app onto the PC
-
-Copy this whole project folder onto the PC, e.g. to `C:\EastEndSignage`.
-(Zip it up and copy via USB drive, or `git clone` the repo if the PC has git
-and access to it.)
-
-## 3. Install dependencies and configure the admin password
+### 2. Install dependencies and configure the admin password
 
 In a PowerShell window, `cd` into the folder, then:
 
@@ -31,14 +52,7 @@ notepad .env.local
 Set `ADMIN_PASSWORD` to whatever password staff should use to log into
 `/admin`. Save and close.
 
-## 4. Bring over existing content (optional)
-
-If you're migrating from an earlier Vercel-hosted version, copy its
-`data/config.json` and the contents of `public/uploads/` into this folder's
-`data/` and `public/uploads/` directories before starting the server. If
-this is a fresh setup, skip this — the app starts with an empty library.
-
-## 5. Build for production
+### 3. Build for production
 
 ```powershell
 npm run build
@@ -48,7 +62,7 @@ Re-run this any time you change the app's code (not needed for day-to-day
 image/screen edits through `/admin` — those just write to `data/` and
 `public/uploads/` directly).
 
-## 6. Install as an auto-starting Windows Service
+### 4. Install as an auto-starting Windows Service
 
 Open PowerShell **as Administrator** (right-click → Run as Administrator),
 `cd` into the project folder, then:
@@ -68,7 +82,7 @@ To remove it later (e.g. before reinstalling), also as Administrator:
 npm run service:uninstall
 ```
 
-## 7. Open the firewall for other devices on the network
+### 5. Open the firewall for other devices on the network
 
 By default Windows Firewall blocks other devices (the TVs) from reaching
 this PC. As Administrator, run once:
@@ -77,7 +91,7 @@ this PC. As Administrator, run once:
 New-NetFirewallRule -DisplayName "EastEnd TV Signage" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
 ```
 
-## 8. Find the PC's local IP address
+### 6. Find the PC's local IP address
 
 ```powershell
 ipconfig
@@ -86,7 +100,7 @@ ipconfig
 Look for the "IPv4 Address" under the active network adapter (e.g.
 `192.168.1.50`). This is what the TVs will use.
 
-## 9. Point each TV at its screen
+### 7. Point each TV at its screen
 
 On each TV's browser, open:
 
@@ -113,10 +127,11 @@ which images each screen shows from `http://<PC-IP>:3000/admin` (or
 
 ## Updating the app later
 
+Copy the new code into the folder, then either double-click
+`deploy\setup.bat` again, or manually:
+
 ```powershell
-# pull/copy the new code into the folder, then:
 npm install
 npm run build
-# restart the service so it picks up the new build:
 Restart-Service EastEndTVSignage
 ```
