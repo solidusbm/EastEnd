@@ -20,7 +20,8 @@ export async function GET(request: Request) {
     JSON.stringify({ state: pkce.state, codeVerifier: pkce.codeVerifier }),
     {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // Not tied to NODE_ENV -- see app/api/admin/login/route.ts.
+      secure: false,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 10,

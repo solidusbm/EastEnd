@@ -26,7 +26,10 @@ export async function POST(request: Request) {
   if (token) {
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // Not tied to NODE_ENV: this app is served over plain HTTP on the LAN
+      // by design (see README), and a Secure cookie is silently dropped by
+      // the browser on any non-HTTPS origin other than localhost.
+      secure: false,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,

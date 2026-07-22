@@ -30,7 +30,8 @@ export async function POST(request: Request) {
   if (token) {
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // Not tied to NODE_ENV -- see app/api/admin/login/route.ts.
+      secure: false,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
