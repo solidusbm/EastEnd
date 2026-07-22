@@ -17,13 +17,15 @@ restaurant's network point their browsers at.
 3. Double-click **`deploy\setup.bat`**. It'll prompt for admin permission
    (needed to install the Windows Service and firewall rule), then runs
    through everything below automatically: installs Node.js if missing,
-   `npm install`, asks for an admin password on first run, builds for
-   production, registers/restarts the `EastEndTVSignage` Windows Service,
-   opens the firewall, and prints the LAN URLs to use.
+   `npm install`, builds for production, registers/restarts the
+   `EastEndTVSignage` Windows Service, opens the firewall, and prints the
+   LAN URLs to use.
+4. Open the admin dashboard URL the script prints. Since no admin account
+   exists yet, you'll land on a setup page to create one — the password you
+   choose there is what staff use to log into `/admin` from then on.
 
 Re-run `setup.bat` any time you copy in an updated version of the app — it
-rebuilds and restarts the service instead of reinstalling from scratch, and
-won't ask for the admin password again once it's set.
+rebuilds and restarts the service instead of reinstalling from scratch.
 
 If double-clicking is blocked or you'd rather run it from a terminal
 yourself: open PowerShell **as Administrator**, `cd` into the project
@@ -39,18 +41,16 @@ Download and install the **LTS** version from https://nodejs.org (or, if
 `winget` is available: `winget install OpenJS.NodeJS.LTS`). Restart the
 terminal after installing so `node`/`npm` are on PATH.
 
-### 2. Install dependencies and configure the admin password
-
-In a PowerShell window, `cd` into the folder, then:
+### 2. Install dependencies
 
 ```powershell
 npm install
-Copy-Item .env.example .env.local
-notepad .env.local
 ```
 
-Set `ADMIN_PASSWORD` to whatever password staff should use to log into
-`/admin`. Save and close.
+You don't need to set an admin password here — the first visit to `/admin`
+after the server is running (step 4) walks you through creating one in the
+browser. If you'd rather set it now instead, `Copy-Item .env.example
+.env.local`, then set `ADMIN_PASSWORD` in it.
 
 ### 3. Build for production
 

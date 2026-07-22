@@ -39,7 +39,14 @@ function MessageText({ message }: { message: Message }) {
   );
 }
 
+const MIN_PASSWORD_LENGTH = 8;
+
 export default function SetupPanel() {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<Message>(null);
+
   const [githubToken, setGithubToken] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
   const [githubBranch, setGithubBranch] = useState("");
@@ -97,6 +104,42 @@ export default function SetupPanel() {
       window.history.replaceState({}, "", window.location.pathname + (newSearch ? `?${newSearch}` : ""));
     }
   }, []);
+
+  async function changePassword() {
+    setPasswordMessage(null);
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordMessage({
+        text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        tone: "error",
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ text: "Passwords don't match.", tone: "error" });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPasswordMessage({ text: data.error ?? "Could not change the password.", tone: "error" });
+        return;
+      }
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage({ text: "Password changed.", tone: "success" });
+    } catch {
+      setPasswordMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
 
   async function saveGithubSettings() {
     setGithubSaving(true);
@@ -185,6 +228,50 @@ export default function SetupPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Admin password</h3>
+          <p className="text-sm text-zinc-500">
+            Changes the password used to log into <code>/admin</code>. You&apos;ll stay signed in
+            here, but anyone else currently logged in elsewhere will be signed out.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            New password
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder={`at least ${MIN_PASSWORD_LENGTH} characters`}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Confirm new password
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={changePassword}
+            disabled={passwordSaving || !newPassword || !confirmPassword}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+          >
+            {passwordSaving ? "Changing…" : "Change password"}
+          </button>
+          <MessageText message={passwordMessage} />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">GitHub image backups</h3>

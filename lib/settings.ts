@@ -9,6 +9,8 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const SETTINGS_PATH = path.join(DATA_DIR, "settings.json");
 
 export interface AppSettings {
+  /** Salted+hashed admin password, set via first-launch setup or Setup > change password. */
+  adminPasswordHash?: string;
   githubBackupToken?: string;
   githubBackupRepo?: string;
   githubBackupBranch?: string;

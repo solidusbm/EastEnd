@@ -1,6 +1,59 @@
+import { randomBytes, scryptSync, timingSafeEqual as nodeTimingSafeEqual } from "crypto";
+import { readSettings, writeSettings } from "./settings";
+
 export const SESSION_COOKIE_NAME = "admin_session";
 
 const SESSION_PAYLOAD = "eastend-admin-authenticated";
+const SCRYPT_KEY_LENGTH = 64;
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, SCRYPT_KEY_LENGTH).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPasswordHash(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const candidate = scryptSync(password, salt, SCRYPT_KEY_LENGTH);
+  const expected = Buffer.from(hash, "hex");
+  if (candidate.length !== expected.length) return false;
+  return nodeTimingSafeEqual(candidate, expected);
+}
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return nodeTimingSafeEqual(bufA, bufB);
+}
+
+/** Whether an admin account exists yet -- via first-launch Setup or the legacy ADMIN_PASSWORD env var. */
+export async function hasAdminPassword(): Promise<boolean> {
+  const settings = await readSettings();
+  return Boolean(settings.adminPasswordHash || process.env.ADMIN_PASSWORD);
+}
+
+/**
+ * Sets (or replaces) the admin password, stored as a salted hash in
+ * data/settings.json. Once set this way, it takes priority over the
+ * ADMIN_PASSWORD env var (which still works as a fallback if this was never
+ * used, e.g. an existing .env.local-based install).
+ */
+export async function setAdminPassword(password: string): Promise<void> {
+  await writeSettings({ adminPasswordHash: hashPassword(password) });
+}
+
+export async function verifyAdminPassword(password: string): Promise<boolean> {
+  const settings = await readSettings();
+  if (settings.adminPasswordHash) {
+    return verifyPasswordHash(password, settings.adminPasswordHash);
+  }
+  if (process.env.ADMIN_PASSWORD) {
+    return timingSafeStringEqual(password, process.env.ADMIN_PASSWORD);
+  }
+  return false;
+}
 
 async function hmac(secret: string, message: string): Promise<string> {
   const enc = new TextEncoder();
@@ -17,22 +70,23 @@ async function hmac(secret: string, message: string): Promise<string> {
     .join("");
 }
 
-export async function createSessionToken(): Promise<string> {
-  const secret = process.env.ADMIN_PASSWORD ?? "";
+// The session token is an HMAC keyed on the current password's stored
+// representation (hash, or the raw env var as a legacy fallback) -- so
+// changing the password naturally invalidates every existing session.
+async function getSessionSecret(): Promise<string | null> {
+  const settings = await readSettings();
+  return settings.adminPasswordHash || process.env.ADMIN_PASSWORD || null;
+}
+
+export async function createSessionToken(): Promise<string | null> {
+  const secret = await getSessionSecret();
+  if (!secret) return null;
   return hmac(secret, SESSION_PAYLOAD);
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
-
 export async function isValidSessionToken(token: string | undefined | null): Promise<boolean> {
-  if (!token || !process.env.ADMIN_PASSWORD) return false;
+  if (!token) return false;
   const expected = await createSessionToken();
-  return timingSafeEqual(token, expected);
+  if (!expected) return false;
+  return timingSafeStringEqual(token, expected);
 }

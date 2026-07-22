@@ -18,8 +18,15 @@ automatically.
   Neither directory is committed to git (see `.gitignore`); back them up
   directly on whatever machine hosts the app.
 - **Auth**: `/admin` and the `/api/admin/*` mutation routes are protected by a
-  single shared password (`ADMIN_PASSWORD`) via an HMAC-signed cookie set in
-  `middleware.ts`/`proxy.ts`. There are no user accounts.
+  single shared password via an HMAC-signed cookie set in `proxy.ts`. There
+  are no user accounts. The password is either the `ADMIN_PASSWORD` env var
+  (legacy/`.env.local`-based setups) or a salted hash in
+  `data/settings.json` (anything set through the browser) — the latter takes
+  priority once it exists. If neither is set yet, every `/admin*` request is
+  redirected to `/admin/setup` to create the first account; from then on,
+  Setup > **Admin password** changes it (and immediately invalidates every
+  other signed-in session, including any left open elsewhere). See
+  `lib/auth.ts`.
 - **Display**: `/dis/[screenId]` is a full-screen client view with no
   chrome. It polls `/api/display/[screenId]` every 45 seconds and picks up
   content/duration changes without a manual reload, crossfading between images
@@ -49,14 +56,16 @@ automatically.
 
 ## Environment variables
 
-`ADMIN_PASSWORD` always comes from `.env.local` (copy it from `.env.example`
-and fill it in). The GitHub/Canva variables are optional and only needed if
-you'd rather set them via `.env.local` than the Setup section in `/admin` —
-whichever you use, they're equivalent.
+None of these are required to get started — with nothing set, the first
+visit to `/admin` walks you through creating the admin account in the
+browser. `.env.local` (copy it from `.env.example`) is only needed if you'd
+rather set things that way instead of through the browser (Setup section in
+`/admin`, or the `/admin/setup` first-run page for the password) — whichever
+you use, they're equivalent.
 
 | Variable | Description |
 | --- | --- |
-| `ADMIN_PASSWORD` | Shared password for `/admin`. |
+| `ADMIN_PASSWORD` | Shared password for `/admin`. Only read if no password has been set via `/admin/setup` or Setup's "Admin password" yet. |
 | `GITHUB_BACKUP_TOKEN` | Optional. Fine-grained GitHub PAT with Contents: Read and write on the target repo. Leave blank to disable image backups. |
 | `GITHUB_BACKUP_REPO` | Optional. `owner/repo` to back images up to. |
 | `GITHUB_BACKUP_BRANCH` | Optional. Branch to push backups to (default `image-backups`). |
@@ -70,8 +79,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
-`ADMIN_PASSWORD`, upload a few images, and create a screen. Then open
+Open [http://localhost:3000/admin](http://localhost:3000/admin) — since
+there's no password configured yet, you'll land on `/admin/setup` to create
+one. After that, upload a few images and create a screen, then open
 `/dis/<screenId>` in another tab to see it cycle.
 
 ## Setting up Canva import/sync
@@ -145,17 +155,22 @@ migration needed.
 - `app/admin/` — password-protected dashboard.
   - `AdminDashboard.tsx` — top-level layout: Screens, Upload, Image library,
     Setup, in that order.
+  - `setup/` — `/admin/setup`, the first-run "create the admin account" page
+    (redirects to `/admin/login` once an account already exists).
+  - `login/` — the normal `/admin/login` page.
   - `ScreenCard.tsx` / `NewScreenForm.tsx` — create/edit/delete screens.
   - `ImagePickerModal.tsx` — popup for assigning a screen's images per
     category.
   - `UploadForm.tsx` — file upload or "Import from Canva".
   - `ImageLibrary.tsx` — browse/edit/delete/replace uploaded images.
-  - `SetupPanel.tsx` — GitHub backup and Canva credential forms +
-    connect/disconnect.
+  - `SetupPanel.tsx` — admin password change, GitHub backup and Canva
+    credential forms, and connect/disconnect.
   - `OpenUploadsFolder.tsx` — the "Open uploads folder" button.
 - `app/dis/[screenId]/` — full-screen TV view.
-- `app/api/admin/` — authenticated CRUD for images, screens, settings, and
-  Canva (`canva/connect|callback|status|disconnect|import|resync`).
+- `app/api/admin/` — authenticated CRUD for images, screens, and settings;
+  `setup` (first-run account creation) and `change-password` are the two
+  exceptions with their own rules (see `lib/auth.ts`); Canva has its own
+  `canva/connect|callback|status|disconnect|import|resync`.
 - `app/api/display/[screenId]/` — public, read-only endpoint the TV polls.
 - `lib/types.ts` — shared types, the `IMAGE_TYPES` category list, and
   per-category normalization helpers.
@@ -163,14 +178,15 @@ migration needed.
   the legacy-screen migration).
 - `lib/uploads.ts` — saves/deletes uploaded image files in `public/uploads/`
   (and fires off the GitHub backup on every save).
-- `lib/settings.ts` — reads/writes `data/settings.json`, the GitHub/Canva
-  credentials entered via the Setup panel.
+- `lib/settings.ts` — reads/writes `data/settings.json`: the admin password
+  hash and the GitHub/Canva credentials entered via the Setup panel.
 - `lib/githubBackup.ts` — permanent image backups via the GitHub Contents API.
 - `lib/canva.ts` / `lib/canvaTokens.ts` / `lib/canvaSync.ts` — Canva Connect
   API client (OAuth, design export), local token storage, and the background
   sync poller.
 - `instrumentation.ts` — starts the Canva sync poller once per server start.
-- `lib/auth.ts` / `proxy.ts` — shared-password session cookie and route
-  protection.
+- `lib/auth.ts` / `proxy.ts` — password hashing/verification, session
+  cookies, and route protection (including the redirect-to-setup logic when
+  no account exists yet).
 - `deploy/` — Windows Service install/uninstall scripts and the restaurant
   PC setup guide.

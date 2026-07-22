@@ -72,51 +72,16 @@ Write-Step "Installing dependencies (npm install)"
 npm install
 Assert-LastExitCode "npm install"
 
-# 3. Admin password
-Write-Step "Checking admin password configuration"
-$EnvExample = Join-Path $ProjectRoot ".env.example"
-$EnvLocal = Join-Path $ProjectRoot ".env.local"
+# No admin password prompt here -- the first visit to /admin walks through
+# creating the account right in the browser (see app/admin/setup). This
+# script only needs to get the server running.
 
-$sourceLines = if (Test-Path $EnvLocal) { Get-Content $EnvLocal } else { Get-Content $EnvExample }
-$currentPassword = $null
-foreach ($line in $sourceLines) {
-    if ($line -match '^\s*ADMIN_PASSWORD\s*=\s*"?([^"]*)"?\s*$') {
-        $currentPassword = $Matches[1]
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($currentPassword)) {
-    $securePassword = Read-Host "Set the admin password staff will use to log into /admin" -AsSecureString
-    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-    )
-    if ([string]::IsNullOrWhiteSpace($plainPassword)) {
-        Write-Host "No password entered; aborting." -ForegroundColor Red
-        exit 1
-    }
-    $wroteLine = $false
-    $newLines = foreach ($line in $sourceLines) {
-        if ($line -match '^\s*ADMIN_PASSWORD\s*=') {
-            $wroteLine = $true
-            "ADMIN_PASSWORD=`"$plainPassword`""
-        } else {
-            $line
-        }
-    }
-    if (-not $wroteLine) { $newLines += "ADMIN_PASSWORD=`"$plainPassword`"" }
-    Set-Content -Path $EnvLocal -Value $newLines
-    Write-Host "Password saved to .env.local."
-} else {
-    if (-not (Test-Path $EnvLocal)) { Copy-Item $EnvExample $EnvLocal }
-    Write-Host "ADMIN_PASSWORD is already set -- leaving .env.local as-is."
-}
-
-# 4. Production build
+# 3. Production build
 Write-Step "Building for production (npm run build)"
 npm run build
 Assert-LastExitCode "npm run build"
 
-# 5. Windows Service (install, or restart if already installed)
+# 4. Windows Service (install, or restart if already installed)
 Write-Step "Setting up the Windows Service"
 $existingService = Get-Service -Name "EastEndTVSignage" -ErrorAction SilentlyContinue
 if ($existingService) {
@@ -128,7 +93,7 @@ if ($existingService) {
     Start-Sleep -Seconds 3
 }
 
-# 6. Firewall rule so TVs on the LAN can reach this PC
+# 5. Firewall rule so TVs on the LAN can reach this PC
 Write-Step "Opening the firewall for devices on the network"
 $existingRule = Get-NetFirewallRule -DisplayName "EastEnd TV Signage" -ErrorAction SilentlyContinue
 if (-not $existingRule) {
@@ -138,7 +103,7 @@ if (-not $existingRule) {
     Write-Host "Firewall rule already exists."
 }
 
-# 7. Summary
+# 6. Summary
 Write-Step "Setup complete"
 $lanIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.InterfaceAlias -notmatch "Loopback" -and $_.IPAddress -notlike "169.254.*" } |
@@ -154,3 +119,4 @@ if ($lanIp) {
 }
 Write-Host ""
 Write-Host "EastEndTVSignage will now auto-start on boot and restart itself if it ever crashes." -ForegroundColor Green
+Write-Host "If this is the first time setting this up, visiting the admin dashboard above will ask you to create the admin account." -ForegroundColor Green

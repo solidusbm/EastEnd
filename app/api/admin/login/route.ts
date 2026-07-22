@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, createSessionToken } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, createSessionToken, hasAdminPassword, verifyAdminPassword } from "@/lib/auth";
 
 export async function POST(request: Request) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) {
+  if (!(await hasAdminPassword())) {
     return NextResponse.json(
-      { error: "Server is missing the ADMIN_PASSWORD environment variable." },
-      { status: 500 }
+      { error: "No admin account exists yet. Visit /admin/setup to create one." },
+      { status: 400 }
     );
   }
 
@@ -18,18 +17,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (typeof password !== "string" || password !== adminPassword) {
+  if (typeof password !== "string" || !(await verifyAdminPassword(password))) {
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
 
   const token = await createSessionToken();
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+  if (token) {
+    response.cookies.set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
   return response;
 }
