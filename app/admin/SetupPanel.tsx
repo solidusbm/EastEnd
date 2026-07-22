@@ -186,11 +186,31 @@ export default function SetupPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <div>
+        <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">GitHub image backups</h3>
           <p className="text-sm text-zinc-500">
-            Every uploaded/synced image is permanently backed up to a branch in this repo.
+            Optional. Every image you upload or sync from Canva is also copied to a branch in a
+            GitHub repo, permanently — deleting it in the app later never removes the backup copy.
           </p>
+          <ol className="list-decimal space-y-1 pl-4 text-sm text-zinc-500">
+            <li>
+              Create a{" "}
+              <a
+                href="https://github.com/settings/personal-access-tokens/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                fine-grained personal access token
+              </a>{" "}
+              scoped to the repo you want backups in, with <strong>Contents: Read and write</strong>{" "}
+              permission.
+            </li>
+            <li>Paste the token and the repo (as owner/repo) into the fields below.</li>
+            <li>
+              Click &quot;Test connection&quot; to confirm the token can see the repo, then click Save.
+            </li>
+          </ol>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -210,9 +230,13 @@ export default function SetupPanel() {
               type="text"
               value={githubRepo}
               onChange={(e) => setGithubRepo(e.target.value)}
-              placeholder="solidusbm/eastend"
+              placeholder="e.g. your-username/your-repo"
               className={inputClass}
             />
+            <span className="text-[11px] font-normal text-zinc-400">
+              Can be this app&apos;s own repo or a separate one just for backups — whatever the
+              token above has access to.
+            </span>
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
             Branch (optional)
@@ -223,6 +247,9 @@ export default function SetupPanel() {
               placeholder="image-backups"
               className={inputClass}
             />
+            <span className="text-[11px] font-normal text-zinc-400">
+              Created automatically the first time a backup runs if it doesn&apos;t already exist.
+            </span>
           </label>
         </div>
 

@@ -62,7 +62,9 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
       </header>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Screens</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+          Screens ({screens.length})
+        </h2>
         <NewScreenForm onCreated={reloadScreens} />
         <div className="flex flex-col gap-6">
           {screens.length === 0 && (
@@ -81,23 +83,21 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Upload image</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Add image</h2>
         <UploadForm onUploaded={reloadImages} />
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setLibraryOpen((open) => !open)}
-            className="flex flex-1 items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
-          >
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Image library ({images.length})
-            </h2>
-            <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setLibraryOpen((open) => !open)}
+          className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        >
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            Image library ({images.length})
+          </h2>
+          <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
+        </button>
         <OpenUploadsFolder />
         {libraryOpen && (
           <ImageLibrary

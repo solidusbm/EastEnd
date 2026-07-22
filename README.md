@@ -26,20 +26,33 @@ automatically.
   as it cycles.
 - **GitHub backup** (optional): every uploaded/synced image is also pushed to
   a branch in a GitHub repo via the REST Contents API — a permanent archive
-  that deleting the image in the app never touches. Disabled unless
-  `GITHUB_BACKUP_TOKEN` is set. See `lib/githubBackup.ts`.
+  that deleting the image in the app never touches. Disabled until a token +
+  repo are set, either from the **Setup** section in `/admin` or via
+  `GITHUB_BACKUP_TOKEN`/`GITHUB_BACKUP_REPO` in `.env.local`. See
+  `lib/githubBackup.ts`.
 - **Canva sync** (optional): images can be imported from a Canva design URL
   instead of a file upload. A background poller (`lib/canvaSync.ts`, started
   once per server via `instrumentation.ts`) checks every 5 minutes whether a
   linked design has changed and re-exports it automatically — Canva has no
-  "design changed" webhook, so polling is the only option. Disabled unless
-  `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET`/`CANVA_REDIRECT_URI` are set; even
-  then, each install needs a one-time "Connect Canva account" step from
-  `/admin`. See `lib/canva.ts`.
+  "design changed" webhook, so polling is the only option. Disabled until a
+  Client ID/Secret/Redirect URI are set (Setup section in `/admin`, or
+  `CANVA_CLIENT_ID`/`CANVA_CLIENT_SECRET`/`CANVA_REDIRECT_URI`); even then,
+  each install needs a one-time "Connect Canva account" step from `/admin`.
+  See `lib/canva.ts`.
+- **Setup panel**: `/admin` has a collapsed-by-default "Setup" section for
+  entering the GitHub backup and Canva credentials from the browser —
+  persisted to `data/settings.json`, no `.env.local` editing or restart
+  needed. Env vars still work as a fallback for anything left unset there.
+  It also has an "Open uploads folder" button next to the image library that
+  launches Explorer at `public/uploads` on whichever PC is running the
+  server (only useful when `/admin` is opened on that same PC).
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and fill in:
+`ADMIN_PASSWORD` always comes from `.env.local` (copy it from `.env.example`
+and fill it in). The GitHub/Canva variables are optional and only needed if
+you'd rather set them via `.env.local` than the Setup section in `/admin` —
+whichever you use, they're equivalent.
 
 | Variable | Description |
 | --- | --- |
@@ -63,30 +76,39 @@ Open [http://localhost:3000/admin](http://localhost:3000/admin), log in with
 
 ## Setting up Canva import/sync
 
+The **Setup** section in `/admin` (collapsed by default, near the bottom)
+walks through this with the same steps inline — the version here is just for
+reference or for setting it via `.env.local` instead.
+
 1. Go to [canva.com/developers](https://www.canva.com/developers), create an
    integration, and note its **Client ID** and **Client Secret**.
-2. In the integration's settings, add a redirect URL that exactly matches
-   what you'll set as `CANVA_REDIRECT_URI` — for local dev,
-   `http://localhost:3000/api/admin/canva/callback`; for the restaurant PC,
-   swap in whatever URL staff actually use to reach `/admin` (its LAN IP or
-   `localhost` if only used on that PC).
-3. Add scopes `design:meta:read` and `design:content:read` to the
+2. Add scopes `design:meta:read` and `design:content:read` to the
    integration.
-4. Set `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`, and `CANVA_REDIRECT_URI` in
-   `.env.local`, then restart the app.
-5. In `/admin`, click **Connect Canva account** in the new Canva panel and
-   approve the authorization. From then on, "Import from Canva" is available
-   in the upload form, and linked images auto-refresh in the background.
+3. In the integration's settings, add a redirect URL that exactly matches
+   the one you'll use as `CANVA_REDIRECT_URI` (or the "Redirect URI" field in
+   Setup) — for local dev, `http://localhost:3000/api/admin/canva/callback`;
+   for the restaurant PC, swap in whatever URL staff actually use to reach
+   `/admin` (its LAN IP, or `localhost` if only used on that PC).
+4. Either paste the Client ID/Secret/Redirect URI into the Setup section in
+   `/admin` and click Save, or set `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`,
+   and `CANVA_REDIRECT_URI` in `.env.local` and restart the app.
+5. In `/admin`, click **Connect Canva account** and approve the
+   authorization. From then on, "Import from Canva" is available in the
+   upload form, and linked images auto-refresh in the background.
 
 ## Setting up GitHub image backups
+
+Same as above — the **Setup** section in `/admin` covers this inline; this is
+the `.env.local` equivalent.
 
 1. Create a GitHub [fine-grained personal access
    token](https://github.com/settings/personal-access-tokens/new) scoped to
    the target repo with **Contents: Read and write** permission.
-2. Set `GITHUB_BACKUP_TOKEN` and `GITHUB_BACKUP_REPO` (`owner/repo`) in
-   `.env.local`, then restart the app. Backups land in a branch named
-   `image-backups` by default (override with `GITHUB_BACKUP_BRANCH`), which
-   is created automatically on first use.
+2. Either paste the token and repo (`owner/repo`) into the Setup section in
+   `/admin`, click "Test connection" to confirm access, then Save — or set
+   `GITHUB_BACKUP_TOKEN` and `GITHUB_BACKUP_REPO` in `.env.local` and restart
+   the app. Backups land in a branch named `image-backups` by default
+   (override with `GITHUB_BACKUP_BRANCH`), created automatically on first use.
 
 ## Deploying to a restaurant PC
 
@@ -120,11 +142,20 @@ migration needed.
 
 ## Project structure
 
-- `app/admin/` — password-protected dashboard (upload/tag/delete images,
-  create/edit/delete screens). `ImagePickerModal.tsx` is the popup used to
-  assign a screen's images per category.
+- `app/admin/` — password-protected dashboard.
+  - `AdminDashboard.tsx` — top-level layout: Screens, Upload, Image library,
+    Setup, in that order.
+  - `ScreenCard.tsx` / `NewScreenForm.tsx` — create/edit/delete screens.
+  - `ImagePickerModal.tsx` — popup for assigning a screen's images per
+    category.
+  - `UploadForm.tsx` — file upload or "Import from Canva".
+  - `ImageLibrary.tsx` — browse/edit/delete/replace uploaded images.
+  - `SetupPanel.tsx` — GitHub backup and Canva credential forms +
+    connect/disconnect.
+  - `OpenUploadsFolder.tsx` — the "Open uploads folder" button.
 - `app/dis/[screenId]/` — full-screen TV view.
-- `app/api/admin/` — authenticated CRUD for images and screens.
+- `app/api/admin/` — authenticated CRUD for images, screens, settings, and
+  Canva (`canva/connect|callback|status|disconnect|import|resync`).
 - `app/api/display/[screenId]/` — public, read-only endpoint the TV polls.
 - `lib/types.ts` — shared types, the `IMAGE_TYPES` category list, and
   per-category normalization helpers.
@@ -132,11 +163,13 @@ migration needed.
   the legacy-screen migration).
 - `lib/uploads.ts` — saves/deletes uploaded image files in `public/uploads/`
   (and fires off the GitHub backup on every save).
+- `lib/settings.ts` — reads/writes `data/settings.json`, the GitHub/Canva
+  credentials entered via the Setup panel.
 - `lib/githubBackup.ts` — permanent image backups via the GitHub Contents API.
 - `lib/canva.ts` / `lib/canvaTokens.ts` / `lib/canvaSync.ts` — Canva Connect
   API client (OAuth, design export), local token storage, and the background
-  sync poller. `app/api/admin/canva/` has the connect/callback/import/resync
-  routes; `app/admin/CanvaPanel.tsx` is the connection-status UI.
+  sync poller.
+- `instrumentation.ts` — starts the Canva sync poller once per server start.
 - `lib/auth.ts` / `proxy.ts` — shared-password session cookie and route
   protection.
 - `deploy/` — Windows Service install/uninstall scripts and the restaurant

@@ -115,11 +115,14 @@ which images each screen shows from `http://<PC-IP>:3000/admin` (or
 
 ### 8. (Optional) Canva sync and GitHub backups
 
-Both are off by default and don't block anything above. If you want them,
-add the relevant variables from `.env.example` to `.env.local` (see the main
-[README](../README.md#setting-up-canva-importsync) for the full setup
-steps for each), then re-run `deploy\setup.bat` to rebuild and restart the
-service.
+Both are off by default and don't block anything above. The easiest way to
+turn them on is the **Setup** section in `/admin` (collapsed by default,
+near the bottom) — it walks through both step by step and saves straight
+from the browser, no restart needed. See the main README's [Setting up
+Canva import/sync](../README.md#setting-up-canva-importsync) and [Setting
+up GitHub image backups](../README.md#setting-up-github-image-backups)
+sections if you'd rather set the equivalent variables in `.env.local`
+instead (then re-run `deploy\setup.bat` to restart the service).
 
 ## Keeping it running reliably
 
