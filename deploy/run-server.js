@@ -4,11 +4,29 @@
 // on the restaurant's LAN can reach it. Invoking Next's CLI script directly
 // with `node` (rather than the next.cmd shim via a shell) avoids needing
 // `shell: true`, which Node flags as a command-injection risk.
+const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
 const projectRoot = path.join(__dirname, "..");
-const port = process.env.PORT || "3000";
+
+// Port precedence: data/settings.json's serverPort (set from Setup in the
+// browser) > PORT env var > 3000. Read directly rather than importing
+// lib/settings.ts, since this plain script runs outside Next/TypeScript.
+function getConfiguredPort() {
+  try {
+    const raw = fs.readFileSync(path.join(projectRoot, "data", "settings.json"), "utf-8");
+    const settings = JSON.parse(raw);
+    if (settings.serverPort && String(settings.serverPort).trim() !== "") {
+      return String(settings.serverPort).trim();
+    }
+  } catch {
+    // No settings file yet, or it's unreadable -- fall through.
+  }
+  return process.env.PORT || "3000";
+}
+
+const port = getConfiguredPort();
 const nextCli = path.join(projectRoot, "node_modules", "next", "dist", "bin", "next");
 
 const child = spawn(process.execPath, [nextCli, "start", "-p", port, "-H", "0.0.0.0"], {

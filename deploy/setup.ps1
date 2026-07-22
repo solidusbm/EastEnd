@@ -13,7 +13,6 @@
 #>
 
 $ErrorActionPreference = "Stop"
-$Port = 3000
 
 function Write-Step($msg) {
     Write-Host ""
@@ -44,6 +43,20 @@ Set-Location $ProjectRoot
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) {
     Write-Host "Could not find package.json in $ProjectRoot -- run this script from inside the EastEnd project's deploy\ folder." -ForegroundColor Red
     exit 1
+}
+
+# Port: defaults to 3000, but a port saved from Setup > Server address in the
+# browser (data\settings.json) takes precedence -- run-server.js honors the
+# same setting, so this just keeps the firewall rule and summary in sync.
+$Port = 3000
+$SettingsPath = Join-Path $ProjectRoot "data\settings.json"
+if (Test-Path $SettingsPath) {
+    try {
+        $Settings = Get-Content $SettingsPath -Raw | ConvertFrom-Json
+        if ($Settings.serverPort) { $Port = [int]$Settings.serverPort }
+    } catch {
+        Write-Host "Could not read a custom port from data\settings.json -- using the default ($Port)." -ForegroundColor Yellow
+    }
 }
 
 # 1. Node.js
@@ -100,7 +113,13 @@ if (-not $existingRule) {
     New-NetFirewallRule -DisplayName "EastEnd TV Signage" -Direction Inbound -LocalPort $Port -Protocol TCP -Action Allow | Out-Null
     Write-Host "Firewall rule added for TCP port $Port."
 } else {
-    Write-Host "Firewall rule already exists."
+    $existingPort = ($existingRule | Get-NetFirewallPortFilter).LocalPort
+    if ($existingPort -ne "$Port") {
+        $existingRule | Set-NetFirewallRule -LocalPort $Port
+        Write-Host "Firewall rule updated to TCP port $Port (was $existingPort)."
+    } else {
+        Write-Host "Firewall rule already exists for TCP port $Port."
+    }
 }
 
 # 6. Summary

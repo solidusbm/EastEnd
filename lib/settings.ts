@@ -17,6 +17,8 @@ export interface AppSettings {
   canvaClientId?: string;
   canvaClientSecret?: string;
   canvaRedirectUri?: string;
+  /** Port the server should listen on, applied on next restart. Defaults to 3000 if unset. */
+  serverPort?: string;
 }
 
 export async function readSettings(): Promise<AppSettings> {

@@ -93,6 +93,13 @@ New-NetFirewallRule -DisplayName "EastEnd TV Signage" -Direction Inbound -LocalP
 
 ### 6. Find the PC's local IP address
 
+Easiest: open `/admin` on the PC and check the **Server address** box in
+Setup — it lists the LAN IP(s) and current port together, and lets you
+change the port from there too (saved to `data/settings.json`; needs a
+service restart to take effect — re-run `deploy\setup.bat` or
+`Restart-Service EastEndTVSignage`, which also updates the firewall rule to
+match). Or manually:
+
 ```powershell
 ipconfig
 ```

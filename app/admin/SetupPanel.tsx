@@ -16,6 +16,12 @@ interface CanvaStatus {
   connected: boolean;
 }
 
+interface ServerInfo {
+  currentPort: string;
+  addresses: string[];
+  configuredPort: string;
+}
+
 type Message = { text: string; tone: "success" | "error" } | null;
 
 const REDIRECT_MESSAGES: Record<string, { text: string; tone: "success" | "error" }> = {
@@ -65,6 +71,11 @@ export default function SetupPanel() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [redirectMessage, setRedirectMessage] = useState<Message>(null);
 
+  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [portInput, setPortInput] = useState("");
+  const [portSaving, setPortSaving] = useState(false);
+  const [portMessage, setPortMessage] = useState<Message>(null);
+
   async function fetchSettings(): Promise<Settings | null> {
     const res = await fetch("/api/admin/settings", { cache: "no-store" });
     return res.ok ? ((await res.json()).settings as Settings) : null;
@@ -73,6 +84,11 @@ export default function SetupPanel() {
   async function fetchCanvaStatus(): Promise<CanvaStatus | null> {
     const res = await fetch("/api/admin/canva/status", { cache: "no-store" });
     return res.ok ? ((await res.json()) as CanvaStatus) : null;
+  }
+
+  async function fetchServerInfo(): Promise<ServerInfo | null> {
+    const res = await fetch("/api/admin/server-info", { cache: "no-store" });
+    return res.ok ? ((await res.json()) as ServerInfo) : null;
   }
 
   useEffect(() => {
@@ -93,6 +109,11 @@ export default function SetupPanel() {
     });
     fetchCanvaStatus().then((data) => {
       if (data) setCanvaStatus(data);
+    });
+    fetchServerInfo().then((info) => {
+      if (!info) return;
+      setServerInfo(info);
+      setPortInput(info.configuredPort || info.currentPort);
     });
 
     const params = new URLSearchParams(window.location.search);
@@ -138,6 +159,44 @@ export default function SetupPanel() {
       setPasswordMessage({ text: "Network error. Please try again.", tone: "error" });
     } finally {
       setPasswordSaving(false);
+    }
+  }
+
+  async function savePort() {
+    setPortMessage(null);
+    const trimmed = portInput.trim();
+    const portNum = Number(trimmed);
+    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+      setPortMessage({ text: "Enter a whole number between 1 and 65535.", tone: "error" });
+      return;
+    }
+
+    setPortSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serverPort: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPortMessage({ text: data.error ?? "Could not save the port.", tone: "error" });
+        return;
+      }
+      setServerInfo((prev) => (prev ? { ...prev, configuredPort: trimmed } : prev));
+      setPortMessage(
+        serverInfo && trimmed === serverInfo.currentPort
+          ? { text: "Saved. Already running on this port.", tone: "success" }
+          : {
+              text:
+                "Saved. Restart the server for this to take effect (restart the EastEndTVSignage service, or restart npm run dev/start) — remember to also update the firewall rule and any bookmarked TV URLs.",
+              tone: "success",
+            }
+      );
+    } catch {
+      setPortMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setPortSaving(false);
     }
   }
 
@@ -228,6 +287,73 @@ export default function SetupPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Server address</h3>
+          <p className="text-sm text-zinc-500">
+            What TVs and other devices on the network use to reach this app.
+          </p>
+        </div>
+
+        {serverInfo ? (
+          <ul className="flex flex-col gap-1 text-sm">
+            {serverInfo.addresses.length > 0 ? (
+              serverInfo.addresses.map((addr) => (
+                <li key={addr}>
+                  <a
+                    href={`http://${addr}:${serverInfo.currentPort}/admin`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    http://{addr}:{serverInfo.currentPort}
+                  </a>
+                  <span className="text-zinc-400"> — use this on the TVs and other devices</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-zinc-500">
+                No network address detected yet — this PC may not be connected to a LAN.
+              </li>
+            )}
+            <li className="text-zinc-400">
+              http://localhost:{serverInfo.currentPort} — from this PC only
+            </li>
+          </ul>
+        ) : (
+          <p className="text-sm text-zinc-400">Loading…</p>
+        )}
+
+        <div className="flex flex-col gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-3 sm:w-64">
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Port
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={portInput}
+              onChange={(e) => setPortInput(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <p className="text-[11px] font-normal normal-case text-zinc-400">
+            Currently running on {serverInfo?.currentPort ?? "…"}. Change this only if that port
+            conflicts with something else on the PC — saving here doesn&apos;t apply it
+            immediately, the server needs a restart to pick it up.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={savePort}
+            disabled={portSaving || !portInput}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+          >
+            {portSaving ? "Saving…" : "Save port"}
+          </button>
+          <MessageText message={portMessage} />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">GitHub image backups</h3>

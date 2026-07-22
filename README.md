@@ -52,7 +52,11 @@ automatically.
   needed. Env vars still work as a fallback for anything left unset there.
   It also has an "Open uploads folder" button next to the image library that
   launches Explorer at `public/uploads` on whichever PC is running the
-  server (only useful when `/admin` is opened on that same PC).
+  server (only useful when `/admin` is opened on that same PC). Its
+  **Server address** box lists the URL(s) — LAN IP plus port — that TVs and
+  other devices use to reach the app, and lets you change the port (saved to
+  `data/settings.json`'s `serverPort`; takes effect on the server's next
+  restart, unlike the other Setup fields — see `deploy/run-server.js`).
 
 ## Environment variables
 
