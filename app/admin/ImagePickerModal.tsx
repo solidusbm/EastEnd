@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ImageRecord } from "@/lib/types";
+import PreviewLightbox from "./PreviewLightbox";
 
 export default function ImagePickerModal({
   title,
@@ -28,13 +29,17 @@ export default function ImagePickerModal({
   onDurationChange: (id: string, seconds: number | undefined) => void;
   onClose: () => void;
 }) {
+  const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      // The lightbox has its own Escape handler when open -- let that close
+      // just the lightbox rather than also dismissing this modal underneath it.
+      if (event.key === "Escape" && !previewImage) onClose();
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, previewImage]);
 
   const imageById = new Map(images.map((image) => [image.id, image]));
   const selectedImages = selectedIds.map((id) => imageById.get(id)).filter((img): img is ImageRecord => Boolean(img));
@@ -95,7 +100,8 @@ export default function ImagePickerModal({
                     <img
                       src={image.url}
                       alt=""
-                      className="h-10 w-16 flex-none rounded object-cover"
+                      onClick={() => setPreviewImage(image)}
+                      className="h-10 w-16 flex-none cursor-pointer rounded object-cover"
                     />
                     <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
                       {image.label || image.id}
@@ -185,6 +191,7 @@ export default function ImagePickerModal({
           )}
         </div>
       </div>
+      <PreviewLightbox image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }

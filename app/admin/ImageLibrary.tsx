@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
+import PreviewLightbox from "./PreviewLightbox";
 
 export default function ImageLibrary({
   images,
@@ -15,6 +16,7 @@ export default function ImageLibrary({
   const [replacingId, setReplacingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
+  const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function labelValue(image: ImageRecord): string {
@@ -126,7 +128,8 @@ export default function ImageLibrary({
             <img
               src={image.url}
               alt={image.label || image.type}
-              className="h-full w-full object-cover"
+              onClick={() => setPreviewImage(image)}
+              className="h-full w-full cursor-pointer object-cover"
             />
             {image.canvaDesignId && (
               <span className="absolute left-1.5 top-1.5 rounded bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white">
@@ -208,6 +211,7 @@ export default function ImageLibrary({
           </div>
         </div>
       ))}
+      <PreviewLightbox image={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }
