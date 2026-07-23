@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { downloadGithubBackup, isGithubBackupConfigured } from "@/lib/githubBackup";
 import { restoreUpload } from "@/lib/uploads";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 interface RequestedItem {
@@ -42,8 +42,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No valid items to import." }, { status: 400 });
   }
 
-  const store = await readStore();
-  const localFilenames = new Set(store.images.map((img) => img.url.split("/").pop()));
+  // Downloading happens outside the store lock (it's slow, one GitHub
+  // request per file) -- only the final write below needs to be atomic
+  // relative to other requests. A filename collision with something saved
+  // in the meantime is astronomically unlikely (filenames are UUID-prefixed).
+  const initialStore = await readStore();
+  const localFilenames = new Set(initialStore.images.map((img) => img.url.split("/").pop()));
 
   let imported = 0;
   let skipped = 0;
@@ -65,7 +69,6 @@ export async function POST(request: Request) {
         label: labelFromFilename(item.filename),
         uploadedAt: new Date().toISOString(),
       };
-      store.images.push(image);
       newImages.push(image);
       localFilenames.add(item.filename);
       imported++;
@@ -75,8 +78,12 @@ export async function POST(request: Request) {
     }
   }
 
-  if (imported > 0) {
-    await writeStore(store);
+  if (newImages.length > 0) {
+    await withStoreLock(async () => {
+      const store = await readStore();
+      store.images.push(...newImages);
+      await writeStore(store);
+    });
   }
 
   return NextResponse.json({ imported, skipped, failed: errors.length, errors, images: newImages });

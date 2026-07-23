@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
@@ -36,37 +36,39 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const store = await readStore();
-  const screen = store.screens.find((s) => s.id === id);
-  if (!screen) {
-    return NextResponse.json({ error: "Screen not found." }, { status: 404 });
-  }
+  return withStoreLock(async () => {
+    const store = await readStore();
+    const screen = store.screens.find((s) => s.id === id);
+    if (!screen) {
+      return NextResponse.json({ error: "Screen not found." }, { status: 404 });
+    }
 
-  if (typeof body.name === "string" && body.name.trim().length > 0) {
-    screen.name = body.name.trim();
-  }
-  if (body.imageIdsByType !== undefined) {
-    screen.imageIdsByType = normalizeImageIdsByType(body.imageIdsByType);
-  }
-  if (body.durationSecondsByType !== undefined) {
-    screen.durationSecondsByType = normalizeDurationSecondsByType(
-      body.durationSecondsByType,
-      screen.durationSecondsByType
-    );
-  }
-  if (body.perImageDurationSeconds !== undefined) {
-    screen.perImageDurationSeconds = toPositiveInt(
-      body.perImageDurationSeconds,
-      screen.perImageDurationSeconds
-    );
-  }
-  if (body.imageDurationOverrides !== undefined) {
-    screen.imageDurationOverrides = normalizeImageDurationOverrides(body.imageDurationOverrides);
-  }
+    if (typeof body.name === "string" && body.name.trim().length > 0) {
+      screen.name = body.name.trim();
+    }
+    if (body.imageIdsByType !== undefined) {
+      screen.imageIdsByType = normalizeImageIdsByType(body.imageIdsByType);
+    }
+    if (body.durationSecondsByType !== undefined) {
+      screen.durationSecondsByType = normalizeDurationSecondsByType(
+        body.durationSecondsByType,
+        screen.durationSecondsByType
+      );
+    }
+    if (body.perImageDurationSeconds !== undefined) {
+      screen.perImageDurationSeconds = toPositiveInt(
+        body.perImageDurationSeconds,
+        screen.perImageDurationSeconds
+      );
+    }
+    if (body.imageDurationOverrides !== undefined) {
+      screen.imageDurationOverrides = normalizeImageDurationOverrides(body.imageDurationOverrides);
+    }
 
-  await writeStore(store);
+    await writeStore(store);
 
-  return NextResponse.json({ screen });
+    return NextResponse.json({ screen });
+  });
 }
 
 export async function DELETE(
@@ -74,14 +76,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const store = await readStore();
-  const exists = store.screens.some((s) => s.id === id);
-  if (!exists) {
-    return NextResponse.json({ error: "Screen not found." }, { status: 404 });
-  }
+  return withStoreLock(async () => {
+    const store = await readStore();
+    const exists = store.screens.some((s) => s.id === id);
+    if (!exists) {
+      return NextResponse.json({ error: "Screen not found." }, { status: 404 });
+    }
 
-  store.screens = store.screens.filter((s) => s.id !== id);
-  await writeStore(store);
+    store.screens = store.screens.filter((s) => s.id !== id);
+    await writeStore(store);
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  });
 }

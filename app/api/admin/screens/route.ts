@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import {
   DEFAULT_SCREEN_DEFAULTS,
   normalizeDurationSecondsByType,
@@ -41,28 +41,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
   }
 
-  const store = await readStore();
-  if (store.screens.some((screen) => screen.id === id)) {
-    return NextResponse.json({ error: `Screen id "${id}" already exists.` }, { status: 409 });
-  }
+  return withStoreLock(async () => {
+    const store = await readStore();
+    if (store.screens.some((screen) => screen.id === id)) {
+      return NextResponse.json({ error: `Screen id "${id}" already exists.` }, { status: 409 });
+    }
 
-  const screen: Screen = {
-    id,
-    name: name.trim(),
-    imageIdsByType: normalizeImageIdsByType(body.imageIdsByType),
-    durationSecondsByType: normalizeDurationSecondsByType(
-      body.durationSecondsByType,
-      DEFAULT_SCREEN_DEFAULTS.durationSecondsByType
-    ),
-    perImageDurationSeconds: toPositiveInt(
-      body.perImageDurationSeconds,
-      DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
-    ),
-    imageDurationOverrides: normalizeImageDurationOverrides(body.imageDurationOverrides),
-  };
+    const screen: Screen = {
+      id,
+      name: name.trim(),
+      imageIdsByType: normalizeImageIdsByType(body.imageIdsByType),
+      durationSecondsByType: normalizeDurationSecondsByType(
+        body.durationSecondsByType,
+        DEFAULT_SCREEN_DEFAULTS.durationSecondsByType
+      ),
+      perImageDurationSeconds: toPositiveInt(
+        body.perImageDurationSeconds,
+        DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
+      ),
+      imageDurationOverrides: normalizeImageDurationOverrides(body.imageDurationOverrides),
+    };
 
-  store.screens.push(screen);
-  await writeStore(store);
+    store.screens.push(screen);
+    await writeStore(store);
 
-  return NextResponse.json({ screen }, { status: 201 });
+    return NextResponse.json({ screen }, { status: 201 });
+  });
 }

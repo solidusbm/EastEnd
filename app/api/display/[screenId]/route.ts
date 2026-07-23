@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 // Rounding to the minute means at most one config.json write per screen per
@@ -28,8 +28,16 @@ export async function GET(
 
   const nowMinute = currentMinuteISOString();
   if (screen.lastSeenAt !== nowMinute) {
-    screen.lastSeenAt = nowMinute;
-    await writeStore(store);
+    // Re-read under the lock rather than reusing `store` -- another request
+    // may have written since this handler's initial read above.
+    await withStoreLock(async () => {
+      const freshStore = await readStore();
+      const freshScreen = freshStore.screens.find((s) => s.id === screenId);
+      if (freshScreen && freshScreen.lastSeenAt !== nowMinute) {
+        freshScreen.lastSeenAt = nowMinute;
+        await writeStore(freshStore);
+      }
+    });
   }
 
   const imageById = new Map<string, ImageRecord>(store.images.map((img) => [img.id, img]));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { saveUpload } from "@/lib/uploads";
 import { fetchCanvaImage, getValidAccessToken, parseCanvaDesignId } from "@/lib/canva";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
@@ -61,9 +61,11 @@ export async function POST(request: Request) {
     canvaSyncedAt: fetched.designUpdatedAt,
   };
 
-  const store = await readStore();
-  store.images.push(image);
-  await writeStore(store);
+  await withStoreLock(async () => {
+    const store = await readStore();
+    store.images.push(image);
+    await writeStore(store);
+  });
 
   return NextResponse.json({ image }, { status: 201 });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStore, writeStore } from "@/lib/store";
+import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { deleteUpload, saveUpload } from "@/lib/uploads";
 import { fetchCanvaImage, getValidAccessToken } from "@/lib/canva";
 
@@ -36,11 +36,22 @@ export async function POST(
   }
 
   const previousUrl = image.url;
-  image.url = await saveUpload(image.type, `${id}-canva-${Date.now()}.png`, fetched.buffer);
-  image.uploadedAt = new Date().toISOString();
-  image.canvaSyncedAt = fetched.designUpdatedAt;
-  await deleteUpload(previousUrl);
+  const url = await saveUpload(image.type, `${id}-canva-${Date.now()}.png`, fetched.buffer);
+  const uploadedAt = new Date().toISOString();
 
-  await writeStore(store);
-  return NextResponse.json({ image });
+  const result = await withStoreLock(async () => {
+    const freshStore = await readStore();
+    const freshImage = freshStore.images.find((img) => img.id === id);
+    if (!freshImage) {
+      return NextResponse.json({ error: "Image was deleted during resync." }, { status: 404 });
+    }
+    freshImage.url = url;
+    freshImage.uploadedAt = uploadedAt;
+    freshImage.canvaSyncedAt = fetched.designUpdatedAt;
+    await writeStore(freshStore);
+    return NextResponse.json({ image: freshImage });
+  });
+
+  await deleteUpload(previousUrl);
+  return result;
 }

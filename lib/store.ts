@@ -97,3 +97,21 @@ export async function writeStore(data: StoreData): Promise<void> {
   await writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
   await rename(tmpPath, CONFIG_PATH);
 }
+
+// Every mutation is a read-modify-write of the whole file. Two of those
+// running concurrently (e.g. a TV's display poll updating lastSeenAt while
+// staff save a screen edit, or several bulk-edit requests at once) would
+// otherwise each read the same starting snapshot and the second write wins,
+// silently discarding whatever the first one changed. Queuing every
+// read-modify-write cycle through this lock -- not just writeStore itself --
+// makes them properly atomic relative to each other.
+let storeLock: Promise<unknown> = Promise.resolve();
+
+export function withStoreLock<T>(fn: () => Promise<T>): Promise<T> {
+  const result = storeLock.then(fn, fn);
+  storeLock = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}

@@ -11,6 +11,7 @@ import SetupPanel from "./SetupPanel";
 import OpenUploadsFolder from "./OpenUploadsFolder";
 import ThemeToggle from "../ThemeToggle";
 import EmergencyOverrideBanner from "./EmergencyOverrideBanner";
+import BulkEditPanel from "./BulkEditPanel";
 
 interface AdminDashboardProps {
   initialImages: ImageRecord[];
@@ -93,6 +94,7 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
             {screens.length === 0 && (
               <p className="text-sm text-zinc-500">No screens yet. Create one above.</p>
             )}
+            {screens.length > 1 && <BulkEditPanel screens={screens} onApplied={reloadScreens} />}
             {screens.map((screen) => (
               <ScreenCard
                 key={screen.id}

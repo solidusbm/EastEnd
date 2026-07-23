@@ -1,4 +1,4 @@
-import { readStore, writeStore } from "./store";
+import { readStore, withStoreLock, writeStore } from "./store";
 import { deleteUpload, saveUpload } from "./uploads";
 import { fetchCanvaImage, getDesignMetadata, getValidAccessToken } from "./canva";
 
@@ -6,6 +6,14 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 10_000;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+interface SyncedImage {
+  id: string;
+  url: string;
+  uploadedAt: string;
+  canvaSyncedAt: string;
+  previousUrl: string;
+}
 
 async function syncOnce(): Promise<void> {
   const accessToken = await getValidAccessToken();
@@ -15,7 +23,11 @@ async function syncOnce(): Promise<void> {
   const linkedImages = store.images.filter((img) => img.canvaDesignId);
   if (linkedImages.length === 0) return;
 
-  let changed = false;
+  // Fetching from Canva is slow (network calls per image) -- done here,
+  // outside the store lock, so it doesn't block other requests (TV polls,
+  // admin edits) for however long this takes. Only the final write below
+  // needs the lock, against a freshly re-read store.
+  const updates: SyncedImage[] = [];
 
   for (const image of linkedImages) {
     const designId = image.canvaDesignId;
@@ -30,20 +42,36 @@ async function syncOnce(): Promise<void> {
       }
 
       const fetched = await fetchCanvaImage(accessToken, designId);
-      const previousUrl = image.url;
-      image.url = await saveUpload(image.type, `${image.id}-canva-${Date.now()}.png`, fetched.buffer);
-      image.uploadedAt = new Date().toISOString();
-      image.canvaSyncedAt = fetched.designUpdatedAt;
-      await deleteUpload(previousUrl);
-      changed = true;
+      const url = await saveUpload(image.type, `${image.id}-canva-${Date.now()}.png`, fetched.buffer);
+      updates.push({
+        id: image.id,
+        url,
+        uploadedAt: new Date().toISOString(),
+        canvaSyncedAt: fetched.designUpdatedAt,
+        previousUrl: image.url,
+      });
       console.log(`[canva-sync] Updated image ${image.id} from design ${designId}`);
     } catch (err) {
       console.error(`[canva-sync] Failed to sync image ${image.id} (design ${designId}):`, err);
     }
   }
 
-  if (changed) {
-    await writeStore(store);
+  if (updates.length === 0) return;
+
+  await withStoreLock(async () => {
+    const freshStore = await readStore();
+    for (const update of updates) {
+      const freshImage = freshStore.images.find((img) => img.id === update.id);
+      if (!freshImage) continue;
+      freshImage.url = update.url;
+      freshImage.uploadedAt = update.uploadedAt;
+      freshImage.canvaSyncedAt = update.canvaSyncedAt;
+    }
+    await writeStore(freshStore);
+  });
+
+  for (const update of updates) {
+    await deleteUpload(update.previousUrl);
   }
 }
 
