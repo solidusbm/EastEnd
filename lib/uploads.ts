@@ -1,5 +1,6 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
+import sharp from "sharp";
 import { backupImageToGithubBestEffort } from "./githubBackup";
 import type { ImageType } from "./types";
 
@@ -9,15 +10,34 @@ import type { ImageType } from "./types";
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
 const UPLOADS_URL_PREFIX = "/uploads/";
 
+// Phone photos routinely come in at 4000px+ on a side, which is wasted
+// detail for a TV and slow to decode on the older WebOS/Tizen browsers this
+// app targets (see README). Capping the longest side keeps files smaller
+// without a visible quality loss at TV viewing distance; images already
+// under this size pass through unchanged (withoutEnlargement).
+const MAX_DIMENSION = 2560;
+
+async function resizeForDisplay(content: Buffer): Promise<Buffer> {
+  try {
+    return await sharp(content)
+      .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
+      .toBuffer();
+  } catch {
+    // Not an image format sharp can decode (or already fine) -- keep the original bytes.
+    return content;
+  }
+}
+
 export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100);
 }
 
 export async function saveUpload(type: ImageType, filename: string, content: Buffer): Promise<string> {
+  const resized = await resizeForDisplay(content);
   await mkdir(UPLOADS_DIR, { recursive: true });
-  await writeFile(path.join(UPLOADS_DIR, filename), content);
+  await writeFile(path.join(UPLOADS_DIR, filename), resized);
   // Best-effort, non-blocking permanent backup -- see lib/githubBackup.ts.
-  backupImageToGithubBestEffort(type, filename, content);
+  backupImageToGithubBestEffort(type, filename, resized);
   return `${UPLOADS_URL_PREFIX}${filename}`;
 }
 
