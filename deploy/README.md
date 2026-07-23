@@ -10,7 +10,12 @@ restaurant's network point their browsers at.
 
 1. Copy this whole project folder onto the PC, e.g. to `C:\EastEndSignage`
    (zip it up and copy via USB drive, or `git clone` if the PC has git and
-   access to the repo).
+   access to the repo). If you downloaded a ZIP (e.g. GitHub's "Download
+   ZIP" button), **fully extract it first** — right-click → Extract All →
+   a short path like `C:\EastEndSignage`. Don't run `setup.bat` from
+   inside Explorer's zip preview without extracting: Windows silently
+   unpacks it into a deeply-nested Temp folder, and the combined path gets
+   long enough that the production build fails (see Troubleshooting below).
 2. If migrating from an earlier Vercel-hosted version, copy its old
    `data/config.json` and `public/uploads/` contents into this folder's
    `data/` and `public/uploads/` first. Skip this for a fresh setup.
@@ -153,3 +158,16 @@ npm install
 npm run build
 Restart-Service EastEndTVSignage
 ```
+
+## Troubleshooting
+
+**`npm run build` fails with a Turbopack error mentioning "path length ...
+exceeds max length of filesystem"**, with a path through
+`AppData\Local\Temp\<random-id>_EastEnd-....zip.<hash>\...` — the project is
+running from inside Explorer's zip preview instead of an extracted folder.
+Opening a `.zip` and running something from within it (without extracting
+first) makes Windows silently unpack it into a deeply-nested Temp folder;
+combined with Next.js's generated build filenames, the full path exceeds
+Windows' path-length limit and the build can't write its output. Fix: close
+that window, right-click the ZIP → **Extract All** → a short path like
+`C:\EastEndSignage`, and run `setup.bat` from the extracted folder instead.
