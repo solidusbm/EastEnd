@@ -75,8 +75,6 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
         </div>
       </header>
 
-      <EmergencyOverrideBanner images={images} />
-
       <section className="flex flex-col gap-4">
         <button
           type="button"
@@ -135,6 +133,8 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
           />
         )}
       </section>
+
+      <EmergencyOverrideBanner images={images} />
 
       <section className="flex flex-col gap-4">
         <button

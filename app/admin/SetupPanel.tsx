@@ -64,6 +64,7 @@ interface SetupPanelProps {
 }
 
 export default function SetupPanel({ onImported }: SetupPanelProps) {
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -149,6 +150,10 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
 
   async function changePassword() {
     setPasswordMessage(null);
+    if (!currentPassword) {
+      setPasswordMessage({ text: "Enter your current password.", tone: "error" });
+      return;
+    }
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
       setPasswordMessage({
         text: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
@@ -166,13 +171,14 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       const res = await fetch("/api/admin/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPassword }),
+        body: JSON.stringify({ currentPassword, password: newPassword }),
       });
       const data = await res.json();
       if (!res.ok) {
         setPasswordMessage({ text: data.error ?? "Could not change the password.", tone: "error" });
         return;
       }
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordMessage({ text: "Password changed.", tone: "success" });
@@ -719,7 +725,16 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Current password
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
             New password
             <input
@@ -745,7 +760,7 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
           <button
             type="button"
             onClick={changePassword}
-            disabled={passwordSaving || !newPassword || !confirmPassword}
+            disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
             className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
           >
             {passwordSaving ? "Changing…" : "Change password"}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, createSessionToken, setAdminPassword } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, createSessionToken, setAdminPassword, verifyAdminPassword } from "@/lib/auth";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -9,6 +9,11 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const currentPassword = body.currentPassword;
+  if (typeof currentPassword !== "string" || !(await verifyAdminPassword(currentPassword))) {
+    return NextResponse.json({ error: "Current password is incorrect." }, { status: 401 });
   }
 
   const password = body.password;
