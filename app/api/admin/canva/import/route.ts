@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const id = crypto.randomUUID();
-  const url = await saveUpload(`${id}-canva-${designId}.png`, fetched.buffer);
+  const url = await saveUpload(type as ImageType, `${id}-canva-${designId}.png`, fetched.buffer);
 
   const image: ImageRecord = {
     id,

@@ -36,7 +36,7 @@ export async function POST(
   }
 
   const previousUrl = image.url;
-  image.url = await saveUpload(`${id}-canva-${Date.now()}.png`, fetched.buffer);
+  image.url = await saveUpload(image.type, `${id}-canva-${Date.now()}.png`, fetched.buffer);
   image.uploadedAt = new Date().toISOString();
   image.canvaSyncedAt = fetched.designUpdatedAt;
   await deleteUpload(previousUrl);

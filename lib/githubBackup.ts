@@ -1,8 +1,11 @@
 // Best-effort permanent backup of uploaded images to a GitHub branch, using
 // the REST Contents API directly (no local git working tree/credentials
 // needed — just an HTTPS call with a token). Deleting an image in the app
-// never touches this backup; it's a one-way archive.
+// never touches this backup; it's a one-way archive. Images are stored under
+// backups/<type>/<filename> so a later restore (see importGithubBackup)
+// knows each image's category without needing separately-backed-up metadata.
 import { readSettings } from "./settings";
+import { IMAGE_TYPES, type ImageType } from "./types";
 
 const API_BASE = "https://api.github.com";
 
@@ -86,15 +89,19 @@ async function getExistingFileSha(config: GithubBackupConfig, path: string): Pro
 }
 
 /**
- * Uploads (or updates) a file at backups/<filename> on the configured
- * branch. Best-effort: callers should not await this on the critical path
- * of a request -- fire it and log/ignore failures.
+ * Uploads (or updates) a file at backups/<type>/<filename> on the
+ * configured branch. Best-effort: callers should not await this on the
+ * critical path of a request -- fire it and log/ignore failures.
  */
-export async function backupImageToGithub(filename: string, content: Buffer): Promise<void> {
+export async function backupImageToGithub(
+  type: ImageType,
+  filename: string,
+  content: Buffer
+): Promise<void> {
   const config = await getGithubBackupConfig();
   if (!config) return;
 
-  const path = `backups/${filename}`;
+  const path = `backups/${type}/${filename}`;
   await ensureBranchExists(config);
   const existingSha = await getExistingFileSha(config, path);
 
@@ -115,10 +122,51 @@ export async function backupImageToGithub(filename: string, content: Buffer): Pr
 }
 
 /** Fire-and-forget wrapper: never throws, just logs on failure. No-ops if unconfigured. */
-export function backupImageToGithubBestEffort(filename: string, content: Buffer): void {
-  backupImageToGithub(filename, content).catch((err) => {
+export function backupImageToGithubBestEffort(type: ImageType, filename: string, content: Buffer): void {
+  backupImageToGithub(type, filename, content).catch((err) => {
     console.error(`[github-backup] Failed to back up ${filename}:`, err);
   });
+}
+
+/**
+ * Lists backed-up filenames per category (backups/<type>/*) on the
+ * configured branch. Returns null if GitHub backup isn't configured. A
+ * category with no backups folder yet (never backed up) comes back as [].
+ */
+export async function listGithubBackups(): Promise<Record<ImageType, string[]> | null> {
+  const config = await getGithubBackupConfig();
+  if (!config) return null;
+
+  const result = {} as Record<ImageType, string[]>;
+  await Promise.all(
+    IMAGE_TYPES.map(async (type) => {
+      const res = await fetch(
+        `${API_BASE}/repos/${config.owner}/${config.repo}/contents/backups/${type}?ref=${config.branch}`,
+        { headers: headers(config) }
+      );
+      if (res.status === 404) {
+        result[type] = [];
+        return;
+      }
+      if (!res.ok) throw new Error(`Listing backups/${type} failed (${res.status}).`);
+      const entries = (await res.json()) as { name: string; type: string }[];
+      result[type] = entries.filter((e) => e.type === "file").map((e) => e.name);
+    })
+  );
+  return result;
+}
+
+/** Downloads a single backed-up file's raw bytes, regardless of size. */
+export async function downloadGithubBackup(type: ImageType, filename: string): Promise<Buffer> {
+  const config = await getGithubBackupConfig();
+  if (!config) throw new Error("GitHub backup isn't configured.");
+
+  const res = await fetch(
+    `${API_BASE}/repos/${config.owner}/${config.repo}/contents/backups/${type}/${filename}?ref=${config.branch}`,
+    { headers: { ...headers(config), Accept: "application/vnd.github.raw" } }
+  );
+  if (!res.ok) throw new Error(`Downloading backups/${type}/${filename} failed (${res.status}).`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /** Validates a token/repo pair (as typed in the settings form, before saving) by checking repo access. */

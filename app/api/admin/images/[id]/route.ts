@@ -29,6 +29,7 @@ export async function PATCH(
     const previousUrl = image.url;
     const filename = sanitizeFilename(file.name || "image");
     image.url = await saveUpload(
+      image.type,
       `${id}-${Date.now()}-${filename}`,
       Buffer.from(await file.arrayBuffer())
     );

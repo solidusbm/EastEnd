@@ -1,6 +1,7 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { backupImageToGithubBestEffort } from "./githubBackup";
+import type { ImageType } from "./types";
 
 // Uploaded images are written into public/uploads so Next's static file
 // server can serve them directly at runtime (no rebuild needed) — this
@@ -12,11 +13,22 @@ export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-100);
 }
 
-export async function saveUpload(filename: string, content: Buffer): Promise<string> {
+export async function saveUpload(type: ImageType, filename: string, content: Buffer): Promise<string> {
   await mkdir(UPLOADS_DIR, { recursive: true });
   await writeFile(path.join(UPLOADS_DIR, filename), content);
   // Best-effort, non-blocking permanent backup -- see lib/githubBackup.ts.
-  backupImageToGithubBestEffort(filename, content);
+  backupImageToGithubBestEffort(type, filename, content);
+  return `${UPLOADS_URL_PREFIX}${filename}`;
+}
+
+/**
+ * Writes a file that was just downloaded FROM a GitHub backup, without
+ * re-uploading it back to GitHub (it's already there -- that's where it
+ * came from). Used by the "restore from GitHub" import flow.
+ */
+export async function restoreUpload(filename: string, content: Buffer): Promise<string> {
+  await mkdir(UPLOADS_DIR, { recursive: true });
+  await writeFile(path.join(UPLOADS_DIR, filename), content);
   return `${UPLOADS_URL_PREFIX}${filename}`;
 }
 

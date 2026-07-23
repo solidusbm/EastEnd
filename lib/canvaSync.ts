@@ -31,7 +31,7 @@ async function syncOnce(): Promise<void> {
 
       const fetched = await fetchCanvaImage(accessToken, designId);
       const previousUrl = image.url;
-      image.url = await saveUpload(`${image.id}-canva-${Date.now()}.png`, fetched.buffer);
+      image.url = await saveUpload(image.type, `${image.id}-canva-${Date.now()}.png`, fetched.buffer);
       image.uploadedAt = new Date().toISOString();
       image.canvaSyncedAt = fetched.designUpdatedAt;
       await deleteUpload(previousUrl);

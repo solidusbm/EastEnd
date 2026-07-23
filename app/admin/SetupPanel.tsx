@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageType } from "@/lib/types";
 
 interface Settings {
   githubBackupToken?: string;
@@ -14,6 +15,16 @@ interface Settings {
 interface CanvaStatus {
   configured: boolean;
   connected: boolean;
+}
+
+interface BackupItem {
+  filename: string;
+  alreadyImported: boolean;
+}
+
+interface BackupsInfo {
+  configured: boolean;
+  backups: Record<ImageType, BackupItem[]> | null;
 }
 
 interface ServerInfo {
@@ -47,7 +58,12 @@ function MessageText({ message }: { message: Message }) {
 
 const MIN_PASSWORD_LENGTH = 8;
 
-export default function SetupPanel() {
+interface SetupPanelProps {
+  /** Called after a successful import so the image library reflects the new images. */
+  onImported?: () => void;
+}
+
+export default function SetupPanel({ onImported }: SetupPanelProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -59,6 +75,11 @@ export default function SetupPanel() {
   const [githubSaving, setGithubSaving] = useState(false);
   const [githubTesting, setGithubTesting] = useState(false);
   const [githubMessage, setGithubMessage] = useState<Message>(null);
+
+  const [backupsInfo, setBackupsInfo] = useState<BackupsInfo | null>(null);
+  const [checkingBackups, setCheckingBackups] = useState(false);
+  const [importingBackups, setImportingBackups] = useState(false);
+  const [backupsMessage, setBackupsMessage] = useState<Message>(null);
 
   const [canvaClientId, setCanvaClientId] = useState("");
   const [canvaClientSecret, setCanvaClientSecret] = useState("");
@@ -242,6 +263,67 @@ export default function SetupPanel() {
       setGithubMessage({ text: "Network error. Please try again.", tone: "error" });
     } finally {
       setGithubTesting(false);
+    }
+  }
+
+  async function checkBackups() {
+    setCheckingBackups(true);
+    setBackupsMessage(null);
+    try {
+      const res = await fetch("/api/admin/github-backups", { cache: "no-store" });
+      const data = (await res.json()) as BackupsInfo;
+      if (!res.ok || !data.configured) {
+        setBackupsInfo(null);
+        setBackupsMessage({
+          text: "GitHub backup isn't configured above yet -- nothing to check.",
+          tone: "error",
+        });
+        return;
+      }
+      setBackupsInfo(data);
+      const total = IMAGE_TYPES.reduce((sum, t) => sum + (data.backups?.[t]?.length ?? 0), 0);
+      if (total === 0) {
+        setBackupsMessage({ text: "No backed-up images found on GitHub yet.", tone: "success" });
+      }
+    } catch {
+      setBackupsMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setCheckingBackups(false);
+    }
+  }
+
+  async function importMissingBackups() {
+    if (!backupsInfo?.backups) return;
+    const items = IMAGE_TYPES.flatMap((type) =>
+      backupsInfo.backups![type].filter((b) => !b.alreadyImported).map((b) => ({ type, filename: b.filename }))
+    );
+    if (items.length === 0) return;
+
+    setImportingBackups(true);
+    setBackupsMessage(null);
+    try {
+      const res = await fetch("/api/admin/github-backups/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBackupsMessage({ text: data.error ?? "Import failed.", tone: "error" });
+        return;
+      }
+      setBackupsMessage({
+        text:
+          `Imported ${data.imported}.` +
+          (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
+        tone: data.failed > 0 ? "error" : "success",
+      });
+      onImported?.();
+      await checkBackups();
+    } catch {
+      setBackupsMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setImportingBackups(false);
     }
   }
 
@@ -441,6 +523,81 @@ export default function SetupPanel() {
           </button>
           <MessageText message={githubMessage} />
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+            Restore from GitHub backups
+          </h3>
+          <p className="text-sm text-zinc-500">
+            Pull previously backed-up images back into this install — useful after a reinstall or
+            a fresh clone, where <code>public/uploads/</code> and <code>data/config.json</code>{" "}
+            start out empty. Requires the GitHub backup settings above to be filled in and saved
+            first. Restored images land back in their original category, re-labeled from their
+            filename (any custom label or screen assignment isn&apos;t backed up, so those need
+            re-doing).
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={checkBackups}
+            disabled={checkingBackups}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {checkingBackups ? "Checking…" : "Check for backups"}
+          </button>
+          {!backupsInfo && <MessageText message={backupsMessage} />}
+        </div>
+
+        {backupsInfo?.backups && (
+          <div className="flex flex-col gap-3">
+            <ul className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              {IMAGE_TYPES.map((type) => {
+                const items = backupsInfo.backups![type];
+                const missing = items.filter((b) => !b.alreadyImported).length;
+                return (
+                  <li
+                    key={type}
+                    className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-2"
+                  >
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">
+                      {IMAGE_TYPE_LABELS[type]}
+                    </div>
+                    <div className="text-zinc-500">
+                      {items.length} backed up
+                      {missing > 0 ? `, ${missing} new` : ""}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {(() => {
+              const totalMissing = IMAGE_TYPES.reduce(
+                (sum, t) => sum + backupsInfo.backups![t].filter((b) => !b.alreadyImported).length,
+                0
+              );
+              return totalMissing > 0 ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={importMissingBackups}
+                    disabled={importingBackups}
+                    className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+                  >
+                    {importingBackups ? "Importing…" : `Import ${totalMissing} new image${totalMissing === 1 ? "" : "s"}`}
+                  </button>
+                  <MessageText message={backupsMessage} />
+                </div>
+              ) : (
+                <MessageText message={backupsMessage ?? { text: "Everything's already imported.", tone: "success" }} />
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
