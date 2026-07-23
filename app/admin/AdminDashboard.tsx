@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ImageRecord, Screen } from "@/lib/types";
 import UploadForm from "./UploadForm";
@@ -40,6 +40,13 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
       setScreens(data.screens);
     }
   }, []);
+
+  // Keeps each screen's online/offline status current for as long as the
+  // dashboard is left open, rather than only refreshing after an edit.
+  useEffect(() => {
+    const interval = setInterval(reloadScreens, 60_000);
+    return () => clearInterval(interval);
+  }, [reloadScreens]);
 
   async function handleLogout() {
     await fetch("/api/admin/logout", { method: "POST" });

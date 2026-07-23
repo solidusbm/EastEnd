@@ -15,6 +15,30 @@ function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
 }
 
+// TVs poll /api/display/[screenId] every 45s, so allow a couple of missed
+// polls before flagging a screen as stale rather than reacting to it
+// instantly (a single dropped request shouldn't read as "the TV is off").
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
+function getScreenStatus(lastSeenAt?: string): {
+  tone: "online" | "stale" | "unknown";
+  label: string;
+} {
+  if (!lastSeenAt) return { tone: "unknown", label: "Never connected" };
+  const ageMs = Date.now() - new Date(lastSeenAt).getTime();
+  if (ageMs < ONLINE_THRESHOLD_MS) return { tone: "online", label: "Online" };
+  const minutes = Math.round(ageMs / 60_000);
+  if (minutes < 60) return { tone: "stale", label: `Last seen ${minutes}m ago` };
+  const hours = Math.round(minutes / 60);
+  return { tone: "stale", label: `Last seen ${hours}h ago` };
+}
+
+const STATUS_DOT_CLASS: Record<"online" | "stale" | "unknown", string> = {
+  online: "bg-green-500",
+  stale: "bg-red-500",
+  unknown: "bg-zinc-400",
+};
+
 // A category is "the only one" when it has a nonzero duration and every
 // other category is silenced (duration 0), matching how DisplayClient
 // decides a category is unavailable.
@@ -154,6 +178,7 @@ export default function ScreenCard({
     }
   }
 
+  const status = getScreenStatus(screen.lastSeenAt);
   const totalImages = IMAGE_TYPES.reduce((sum, type) => sum + imageIdsByType[type].length, 0);
   const onlyType = IMAGE_TYPES.find((type) => isOnlyCategory(type, durationSecondsByType));
   const summary = onlyType
@@ -174,6 +199,13 @@ export default function ScreenCard({
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm font-medium outline-none focus:border-zinc-500"
           />
           <span className="text-xs text-zinc-400">id: {screen.id}</span>
+          <span
+            className="flex items-center gap-1.5 text-xs text-zinc-500"
+            title={screen.lastSeenAt ? new Date(screen.lastSeenAt).toLocaleString() : undefined}
+          >
+            <span className={`h-2 w-2 rounded-full ${STATUS_DOT_CLASS[status.tone]}`} />
+            {status.label}
+          </span>
         </div>
 
         <div className="flex flex-col items-end gap-1">

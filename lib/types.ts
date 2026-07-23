@@ -27,6 +27,8 @@ export interface Screen {
   imageIdsByType: Record<ImageType, string[]>;
   durationSecondsByType: Record<ImageType, number>;
   perImageDurationSeconds: number;
+  /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */
+  lastSeenAt?: string;
 }
 
 /**
