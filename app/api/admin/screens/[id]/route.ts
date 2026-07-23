@@ -4,6 +4,7 @@ import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
   normalizeImageIdsByType,
+  normalizeScheduleRules,
 } from "@/lib/types";
 
 export async function GET(
@@ -63,6 +64,9 @@ export async function PUT(
     }
     if (body.imageDurationOverrides !== undefined) {
       screen.imageDurationOverrides = normalizeImageDurationOverrides(body.imageDurationOverrides);
+    }
+    if (body.scheduleRules !== undefined) {
+      screen.scheduleRules = normalizeScheduleRules(body.scheduleRules);
     }
 
     await writeStore(store);

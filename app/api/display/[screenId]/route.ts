@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readStore, withStoreLock, writeStore } from "@/lib/store";
+import { getActiveScheduleRule } from "@/lib/schedule";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 // Rounding to the minute means at most one config.json write per screen per
@@ -48,6 +49,23 @@ export async function GET(
       .filter((img): img is ImageRecord => Boolean(img));
   }
 
+  // A schedule rule temporarily behaves like locking the screen to just its
+  // one category (optionally just one image), the same way the "Only"
+  // checkboxes work -- silencing every other category and, if the rule
+  // names a specific image, narrowing that category down to just it.
+  let durationSecondsByType = screen.durationSecondsByType;
+  const activeRule = getActiveScheduleRule(screen.scheduleRules, new Date());
+  if (activeRule) {
+    durationSecondsByType = {} as Record<ImageType, number>;
+    for (const type of IMAGE_TYPES) {
+      durationSecondsByType[type] = type === activeRule.type ? screen.durationSecondsByType[type] || 3600 : 0;
+    }
+    if (activeRule.imageId) {
+      const ruleImage = imageById.get(activeRule.imageId);
+      if (ruleImage) imagesByType[activeRule.type] = [ruleImage];
+    }
+  }
+
   const override = store.emergencyOverride.active
     ? {
         active: true as const,
@@ -59,7 +77,7 @@ export async function GET(
     : null;
 
   return NextResponse.json(
-    { screen, imagesByType, emergencyOverride: override },
+    { screen: { ...screen, durationSecondsByType }, imagesByType, emergencyOverride: override },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

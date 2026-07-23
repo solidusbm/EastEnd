@@ -5,6 +5,7 @@ import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
   normalizeImageIdsByType,
+  normalizeScheduleRules,
   type Screen,
 } from "@/lib/types";
 
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
         DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
       ),
       imageDurationOverrides: normalizeImageDurationOverrides(body.imageDurationOverrides),
+      scheduleRules: normalizeScheduleRules(body.scheduleRules),
     };
 
     store.screens.push(screen);

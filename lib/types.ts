@@ -21,6 +21,28 @@ export interface ImageRecord {
   canvaSyncedAt?: string;
 }
 
+/**
+ * Auto-switches a screen to show just one category (optionally just one
+ * image within it) during a time window -- the same effect as the "Only"
+ * checkboxes in the image picker, just applied on a schedule instead of by
+ * hand. The screen's normal imageIdsByType/durationSecondsByType stay
+ * exactly as configured and are used whenever no rule is currently active,
+ * so a schedule is purely an addition, never a replacement, of the base
+ * setup.
+ */
+export interface ScheduleRule {
+  id: string;
+  label: string;
+  /** 24h "HH:MM". If startTime > endTime, the window wraps past midnight. */
+  startTime: string;
+  endTime: string;
+  /** 0=Sunday..6=Saturday. Empty means every day. */
+  days: number[];
+  type: ImageType;
+  /** Narrow further to just this one image within `type`; unset shows the whole category. */
+  imageId?: string;
+}
+
 export interface Screen {
   id: string;
   name: string;
@@ -30,6 +52,8 @@ export interface Screen {
   perImageDurationSeconds: number;
   /** Per-image duration override (seconds), keyed by image id. Falls back to perImageDurationSeconds when absent. */
   imageDurationOverrides: Record<string, number>;
+  /** Time-based auto-switching; first matching rule wins. See ScheduleRule. */
+  scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */
   lastSeenAt?: string;
 }
@@ -91,6 +115,38 @@ export function normalizeImageDurationOverrides(input: unknown): Record<string, 
     if (Number.isFinite(num) && num > 0) {
       result[id] = Math.round(num);
     }
+  }
+  return result;
+}
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function isValidTime(value: unknown): value is string {
+  return typeof value === "string" && TIME_PATTERN.test(value);
+}
+
+/** Reads and validates an array of schedule rules, dropping any malformed entries. */
+export function normalizeScheduleRules(input: unknown): ScheduleRule[] {
+  if (!Array.isArray(input)) return [];
+  const result: ScheduleRule[] = [];
+  for (const raw of input) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const rule = raw as Record<string, unknown>;
+    if (typeof rule.id !== "string" || !rule.id) continue;
+    if (!isValidTime(rule.startTime) || !isValidTime(rule.endTime)) continue;
+    if (typeof rule.type !== "string" || !IMAGE_TYPES.includes(rule.type as ImageType)) continue;
+    const days = Array.isArray(rule.days)
+      ? rule.days.filter((d): d is number => typeof d === "number" && d >= 0 && d <= 6)
+      : [];
+    result.push({
+      id: rule.id,
+      label: typeof rule.label === "string" ? rule.label : "",
+      startTime: rule.startTime,
+      endTime: rule.endTime,
+      days,
+      type: rule.type as ImageType,
+      imageId: typeof rule.imageId === "string" && rule.imageId ? rule.imageId : undefined,
+    });
   }
   return result;
 }

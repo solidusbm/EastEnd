@@ -10,6 +10,7 @@ import {
   type Screen,
 } from "@/lib/types";
 import ImagePickerModal from "./ImagePickerModal";
+import ScheduleEditor from "./ScheduleEditor";
 
 function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
@@ -73,6 +74,8 @@ export default function ScreenCard({
   );
   const [imageIdsByType, setImageIdsByType] = useState(screen.imageIdsByType);
   const [imageDurationOverrides, setImageDurationOverrides] = useState(screen.imageDurationOverrides);
+  const [scheduleRules, setScheduleRules] = useState(screen.scheduleRules);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [activePicker, setActivePicker] = useState<ImageType | null>(null);
   const [collapsed, setCollapsed] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,6 +97,7 @@ export default function ScreenCard({
       setPerImageDurationSeconds(screen.perImageDurationSeconds);
       setImageIdsByType(screen.imageIdsByType);
       setImageDurationOverrides(screen.imageDurationOverrides);
+      setScheduleRules(screen.scheduleRules);
     }
   }
 
@@ -165,6 +169,7 @@ export default function ScreenCard({
           perImageDurationSeconds,
           imageIdsByType,
           imageDurationOverrides,
+          scheduleRules,
         }),
       });
       const data = await res.json();
@@ -329,6 +334,30 @@ export default function ScreenCard({
                 </button>
               </div>
             ))}
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+            <button
+              type="button"
+              onClick={() => setScheduleOpen((value) => !value)}
+              className="flex items-center justify-between text-left"
+            >
+              <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Schedule {scheduleRules.length > 0 ? `(${scheduleRules.length})` : ""}
+              </span>
+              <span className="text-xs text-zinc-500">{scheduleOpen ? "Hide ▲" : "Show ▼"}</span>
+            </button>
+            {scheduleOpen && (
+              <ScheduleEditor
+                rules={scheduleRules}
+                onChange={(rules) => {
+                  setDirty(true);
+                  setScheduleRules(rules);
+                }}
+                imageIdsByType={imageIdsByType}
+                images={images}
+              />
+            )}
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
