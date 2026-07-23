@@ -4,6 +4,7 @@ import {
   DEFAULT_EMERGENCY_OVERRIDE,
   DEFAULT_SCREEN_DEFAULTS,
   normalizeDurationSecondsByType,
+  normalizeImageDurationOverrides,
   normalizeImageIdsByType,
   type EmergencyOverride,
   type Screen,
@@ -49,6 +50,7 @@ function normalizeScreen(raw: Record<string, unknown>): Screen {
       raw.perImageDurationSeconds,
       DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
     ),
+    imageDurationOverrides: normalizeImageDurationOverrides(raw.imageDurationOverrides),
     lastSeenAt: typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : undefined,
   };
 }

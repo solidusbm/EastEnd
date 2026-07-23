@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { readStore, writeStore } from "@/lib/store";
-import { normalizeDurationSecondsByType, normalizeImageIdsByType } from "@/lib/types";
+import {
+  normalizeDurationSecondsByType,
+  normalizeImageDurationOverrides,
+  normalizeImageIdsByType,
+} from "@/lib/types";
 
 export async function GET(
   _request: Request,
@@ -55,6 +59,9 @@ export async function PUT(
       body.perImageDurationSeconds,
       screen.perImageDurationSeconds
     );
+  }
+  if (body.imageDurationOverrides !== undefined) {
+    screen.imageDurationOverrides = normalizeImageDurationOverrides(body.imageDurationOverrides);
   }
 
   await writeStore(store);

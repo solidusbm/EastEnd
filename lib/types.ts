@@ -24,9 +24,12 @@ export interface ImageRecord {
 export interface Screen {
   id: string;
   name: string;
+  /** Order within each category's array is the display order -- reorderable in the image picker. */
   imageIdsByType: Record<ImageType, string[]>;
   durationSecondsByType: Record<ImageType, number>;
   perImageDurationSeconds: number;
+  /** Per-image duration override (seconds), keyed by image id. Falls back to perImageDurationSeconds when absent. */
+  imageDurationOverrides: Record<string, number>;
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */
   lastSeenAt?: string;
 }
@@ -75,6 +78,19 @@ export function normalizeImageIdsByType(input: unknown): Record<ImageType, strin
     result[type] = Array.isArray(value)
       ? value.filter((v): v is string => typeof v === "string")
       : [];
+  }
+  return result;
+}
+
+/** Reads a map of imageId -> duration seconds, dropping any non-positive or invalid entries. */
+export function normalizeImageDurationOverrides(input: unknown): Record<string, number> {
+  const source = (input ?? {}) as Record<string, unknown>;
+  const result: Record<string, number> = {};
+  for (const [id, value] of Object.entries(source)) {
+    const num = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(num) && num > 0) {
+      result[id] = Math.round(num);
+    }
   }
   return result;
 }

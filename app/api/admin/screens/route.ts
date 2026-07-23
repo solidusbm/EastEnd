@@ -3,6 +3,7 @@ import { readStore, writeStore } from "@/lib/store";
 import {
   DEFAULT_SCREEN_DEFAULTS,
   normalizeDurationSecondsByType,
+  normalizeImageDurationOverrides,
   normalizeImageIdsByType,
   type Screen,
 } from "@/lib/types";
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       body.perImageDurationSeconds,
       DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
     ),
+    imageDurationOverrides: normalizeImageDurationOverrides(body.imageDurationOverrides),
   };
 
   store.screens.push(screen);

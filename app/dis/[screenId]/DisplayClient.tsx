@@ -18,7 +18,10 @@ interface DisplayData {
 interface CycleState {
   type: ImageType;
   index: number;
-  elapsed: number;
+  /** Seconds since this category started -- governs moving to the next category. */
+  categoryElapsed: number;
+  /** Seconds since the current image started showing -- governs advancing to the next image. */
+  imageElapsed: number;
 }
 
 const POLL_INTERVAL_MS = 45_000;
@@ -43,7 +46,12 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   const [notFound, setNotFound] = useState(false);
   const dataRef = useRef<DisplayData | null>(null);
 
-  const [cycle, setCycle] = useState<CycleState>({ type: IMAGE_TYPES[0], index: 0, elapsed: 0 });
+  const [cycle, setCycle] = useState<CycleState>({
+    type: IMAGE_TYPES[0],
+    index: 0,
+    categoryElapsed: 0,
+    imageElapsed: 0,
+  });
 
   const [layers, setLayers] = useState<[string | null, string | null]>([null, null]);
   const [activeLayer, setActiveLayer] = useState<0 | 1>(0);
@@ -104,22 +112,30 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
         const type = prev.type;
         if (!isAvailable(type, current)) {
           const next = nextAvailableType(type, current);
-          return next ? { type: next, index: 0, elapsed: 0 } : prev;
+          return next ? { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 } : prev;
         }
 
         const images = current.imagesByType[type];
         const modeDuration = current.screen.durationSecondsByType[type];
-        const perImageDuration = Math.max(1, current.screen.perImageDurationSeconds);
 
-        const elapsed = prev.elapsed + 1;
-        if (elapsed >= modeDuration) {
+        const categoryElapsed = prev.categoryElapsed + 1;
+        if (categoryElapsed >= modeDuration) {
           const next = nextAvailableType(type, current) ?? type;
-          return { type: next, index: 0, elapsed: 0 };
+          return { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 };
         }
-        if (images.length > 1 && elapsed % perImageDuration === 0) {
-          return { type, elapsed, index: (prev.index + 1) % images.length };
+
+        const currentImageId = images[prev.index % images.length]?.id;
+        const perImageDuration = Math.max(
+          1,
+          (currentImageId && current.screen.imageDurationOverrides[currentImageId]) ||
+            current.screen.perImageDurationSeconds
+        );
+
+        const imageElapsed = prev.imageElapsed + 1;
+        if (images.length > 1 && imageElapsed >= perImageDuration) {
+          return { type, categoryElapsed, imageElapsed: 0, index: (prev.index + 1) % images.length };
         }
-        return { type, elapsed, index: prev.index };
+        return { type, categoryElapsed, imageElapsed, index: prev.index };
       });
     }, 1000);
     return () => clearInterval(interval);

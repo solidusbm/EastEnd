@@ -15,6 +15,15 @@ function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
 }
 
+function moveId(ids: string[], id: string, direction: "up" | "down"): string[] {
+  const index = ids.indexOf(id);
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (index === -1 || targetIndex < 0 || targetIndex >= ids.length) return ids;
+  const next = [...ids];
+  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  return next;
+}
+
 // TVs poll /api/display/[screenId] every 45s, so allow a couple of missed
 // polls before flagging a screen as stale rather than reacting to it
 // instantly (a single dropped request shouldn't read as "the TV is off").
@@ -63,20 +72,29 @@ export default function ScreenCard({
     screen.perImageDurationSeconds
   );
   const [imageIdsByType, setImageIdsByType] = useState(screen.imageIdsByType);
+  const [imageDurationOverrides, setImageDurationOverrides] = useState(screen.imageDurationOverrides);
   const [activePicker, setActivePicker] = useState<ImageType | null>(null);
   const [collapsed, setCollapsed] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prevScreen, setPrevScreen] = useState(screen);
+  // The dashboard refreshes screen data in the background (after any save,
+  // and periodically for online/offline status) -- without this, that
+  // refresh would silently overwrite whatever the user is mid-edit on here
+  // with whatever's still saved on the server.
+  const [dirty, setDirty] = useState(false);
   const displayPath = `/dis/${screen.id}`;
 
   if (prevScreen !== screen) {
     setPrevScreen(screen);
-    setName(screen.name);
-    setDurationSecondsByType(screen.durationSecondsByType);
-    setPerImageDurationSeconds(screen.perImageDurationSeconds);
-    setImageIdsByType(screen.imageIdsByType);
+    if (!dirty) {
+      setName(screen.name);
+      setDurationSecondsByType(screen.durationSecondsByType);
+      setPerImageDurationSeconds(screen.perImageDurationSeconds);
+      setImageIdsByType(screen.imageIdsByType);
+      setImageDurationOverrides(screen.imageDurationOverrides);
+    }
   }
 
   const imagesByType = Object.fromEntries(
@@ -108,6 +126,7 @@ export default function ScreenCard({
   }
 
   function toggleOnlyCategory(type: ImageType) {
+    setDirty(true);
     if (isOnlyCategory(type, durationSecondsByType)) {
       restoreOtherCategories(type);
     } else {
@@ -124,6 +143,7 @@ export default function ScreenCard({
   }
 
   function toggleOnlyImage(type: ImageType, imageId: string) {
+    setDirty(true);
     if (isOnlyImage(type, imageId)) {
       restoreOtherCategories(type);
       return;
@@ -144,6 +164,7 @@ export default function ScreenCard({
           durationSecondsByType,
           perImageDurationSeconds,
           imageIdsByType,
+          imageDurationOverrides,
         }),
       });
       const data = await res.json();
@@ -151,6 +172,7 @@ export default function ScreenCard({
         setError(data.error ?? "Could not save screen.");
         return;
       }
+      setDirty(false);
       onUpdated();
     } catch {
       setError("Network error. Please try again.");
@@ -195,7 +217,10 @@ export default function ScreenCard({
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setDirty(true);
+              setName(e.target.value);
+            }}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm font-medium outline-none focus:border-zinc-500"
           />
           <span className="text-xs text-zinc-400">id: {screen.id}</span>
@@ -249,7 +274,10 @@ export default function ScreenCard({
               type="number"
               min={1}
               value={perImageDurationSeconds}
-              onChange={(e) => setPerImageDurationSeconds(Number(e.target.value))}
+              onChange={(e) => {
+                setDirty(true);
+                setPerImageDurationSeconds(Number(e.target.value));
+              }}
               className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
             />
           </label>
@@ -282,12 +310,13 @@ export default function ScreenCard({
                     type="number"
                     min={1}
                     value={durationSecondsByType[type]}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      setDirty(true);
                       setDurationSecondsByType((prev) => ({
                         ...prev,
                         [type]: Number(e.target.value),
-                      }))
-                    }
+                      }));
+                    }}
                     className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
                   />
                 </label>
@@ -328,12 +357,13 @@ export default function ScreenCard({
           title={`Select ${IMAGE_TYPE_LABELS[activePicker]} images`}
           images={imagesByType[activePicker]}
           selectedIds={imageIdsByType[activePicker]}
-          onToggle={(id) =>
+          onToggle={(id) => {
+            setDirty(true);
             setImageIdsByType((prev) => ({
               ...prev,
               [activePicker]: toggleId(prev[activePicker], id),
-            }))
-          }
+            }));
+          }}
           onlyImageId={
             imageIdsByType[activePicker].length === 1 &&
             isOnlyCategory(activePicker, durationSecondsByType)
@@ -341,6 +371,27 @@ export default function ScreenCard({
               : null
           }
           onToggleOnly={(id) => toggleOnlyImage(activePicker, id)}
+          onMove={(id, direction) => {
+            setDirty(true);
+            setImageIdsByType((prev) => ({
+              ...prev,
+              [activePicker]: moveId(prev[activePicker], id, direction),
+            }));
+          }}
+          defaultDurationSeconds={perImageDurationSeconds}
+          durationOverrides={imageDurationOverrides}
+          onDurationChange={(id, seconds) => {
+            setDirty(true);
+            setImageDurationOverrides((prev) => {
+              const next = { ...prev };
+              if (seconds === undefined) {
+                delete next[id];
+              } else {
+                next[id] = seconds;
+              }
+              return next;
+            });
+          }}
           onClose={() => setActivePicker(null)}
         />
       )}

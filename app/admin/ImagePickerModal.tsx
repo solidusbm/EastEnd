@@ -10,6 +10,10 @@ export default function ImagePickerModal({
   onToggle,
   onlyImageId,
   onToggleOnly,
+  onMove,
+  defaultDurationSeconds,
+  durationOverrides,
+  onDurationChange,
   onClose,
 }: {
   title: string;
@@ -18,6 +22,10 @@ export default function ImagePickerModal({
   onToggle: (id: string) => void;
   onlyImageId: string | null;
   onToggleOnly: (id: string) => void;
+  onMove: (id: string, direction: "up" | "down") => void;
+  defaultDurationSeconds: number;
+  durationOverrides: Record<string, number>;
+  onDurationChange: (id: string, seconds: number | undefined) => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -27,6 +35,9 @@ export default function ImagePickerModal({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  const imageById = new Map(images.map((image) => [image.id, image]));
+  const selectedImages = selectedIds.map((id) => imageById.get(id)).filter((img): img is ImageRecord => Boolean(img));
 
   return (
     <div
@@ -48,7 +59,70 @@ export default function ImagePickerModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto">
+        <div className="flex flex-col gap-4 overflow-y-auto">
+          {selectedImages.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Display order &amp; timing
+              </p>
+              <ul className="flex flex-col gap-1">
+                {selectedImages.map((image, index) => (
+                  <li
+                    key={image.id}
+                    className="flex items-center gap-2 rounded-md border border-zinc-200 dark:border-zinc-800 px-2 py-1.5"
+                  >
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => onMove(image.id, "up")}
+                        disabled={index === 0}
+                        aria-label="Move up"
+                        className="leading-none text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-30"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onMove(image.id, "down")}
+                        disabled={index === selectedImages.length - 1}
+                        aria-label="Move down"
+                        className="leading-none text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-30"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.url}
+                      alt=""
+                      className="h-10 w-16 flex-none rounded object-cover"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
+                      {image.label || image.id}
+                    </span>
+                    <label className="flex items-center gap-1 text-xs text-zinc-500">
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder={String(defaultDurationSeconds)}
+                        value={durationOverrides[image.id] ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          onDurationChange(image.id, raw === "" ? undefined : Number(raw));
+                        }}
+                        className="w-16 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-1.5 py-1 text-sm outline-none focus:border-zinc-500"
+                      />
+                      s
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-zinc-400">
+                Blank duration uses the screen&apos;s default ({defaultDurationSeconds}s).
+              </p>
+            </div>
+          )}
+
           {images.length === 0 ? (
             <p className="text-sm text-zinc-500">
               No images tagged for this category yet. Upload some above first.
