@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "../../ThemeToggle";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -47,7 +48,10 @@ export default function SetupAccountForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black px-4">
+    <div className="relative flex flex-1 items-center justify-center bg-zinc-50 dark:bg-black px-4">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-8 shadow-sm"
