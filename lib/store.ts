@@ -1,9 +1,11 @@
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
 import path from "path";
 import {
+  DEFAULT_EMERGENCY_OVERRIDE,
   DEFAULT_SCREEN_DEFAULTS,
   normalizeDurationSecondsByType,
   normalizeImageIdsByType,
+  type EmergencyOverride,
   type Screen,
   type StoreData,
 } from "./types";
@@ -50,19 +52,37 @@ function normalizeScreen(raw: Record<string, unknown>): Screen {
   };
 }
 
+function normalizeEmergencyOverride(raw: unknown): EmergencyOverride {
+  const source = raw as Partial<EmergencyOverride> | undefined;
+  if (!source || typeof source !== "object") return DEFAULT_EMERGENCY_OVERRIDE;
+  return {
+    active: source.active === true,
+    imageId: typeof source.imageId === "string" ? source.imageId : undefined,
+    message: typeof source.message === "string" ? source.message : undefined,
+    activatedAt: typeof source.activatedAt === "string" ? source.activatedAt : undefined,
+  };
+}
+
 export async function readStore(): Promise<StoreData> {
   let raw: string;
   try {
     raw = await readFile(CONFIG_PATH, "utf-8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { images: [], screens: [] };
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return { images: [], screens: [], emergencyOverride: DEFAULT_EMERGENCY_OVERRIDE };
+    }
     throw err;
   }
 
-  const data = JSON.parse(raw) as { images?: StoreData["images"]; screens?: Record<string, unknown>[] };
+  const data = JSON.parse(raw) as {
+    images?: StoreData["images"];
+    screens?: Record<string, unknown>[];
+    emergencyOverride?: unknown;
+  };
   return {
     images: data.images ?? [],
     screens: (data.screens ?? []).map(normalizeScreen),
+    emergencyOverride: normalizeEmergencyOverride(data.emergencyOverride),
   };
 }
 

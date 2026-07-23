@@ -9,6 +9,8 @@ import ScreenCard from "./ScreenCard";
 import NewScreenForm from "./NewScreenForm";
 import SetupPanel from "./SetupPanel";
 import OpenUploadsFolder from "./OpenUploadsFolder";
+import ThemeToggle from "../ThemeToggle";
+import EmergencyOverrideBanner from "./EmergencyOverrideBanner";
 
 interface AdminDashboardProps {
   initialImages: ImageRecord[];
@@ -54,13 +56,18 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
           </h1>
           <p className="text-sm text-zinc-500">Upload images, tag them, and assign them to screens.</p>
         </div>
-        <button
-          onClick={handleLogout}
-          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-        >
-          Log out
-        </button>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button
+            onClick={handleLogout}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Log out
+          </button>
+        </div>
       </header>
+
+      <EmergencyOverrideBanner images={images} />
 
       <section className="flex flex-col gap-4">
         <button
@@ -129,7 +136,7 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Setup</h2>
           <span className="text-sm text-zinc-500">{setupOpen ? "Hide ▲" : "Show ▼"}</span>
         </button>
-        {setupOpen && <SetupPanel />}
+        {setupOpen && <SetupPanel onImported={reloadImages} />}
       </section>
     </div>
   );

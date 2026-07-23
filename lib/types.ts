@@ -29,9 +29,27 @@ export interface Screen {
   perImageDurationSeconds: number;
 }
 
+/**
+ * A manual, instant override shown on every screen in place of its normal
+ * rotation -- e.g. "Closed for a private event today." Global (not
+ * per-screen) since the point is a single button that reaches every TV at
+ * once without hunting through individual screens.
+ */
+export interface EmergencyOverride {
+  active: boolean;
+  /** Existing image id to show full-screen instead of the normal rotation. */
+  imageId?: string;
+  /** Text shown instead of (or captioned under, if imageId is also set) the image. */
+  message?: string;
+  activatedAt?: string;
+}
+
+export const DEFAULT_EMERGENCY_OVERRIDE: EmergencyOverride = { active: false };
+
 export interface StoreData {
   images: ImageRecord[];
   screens: Screen[];
+  emergencyOverride: EmergencyOverride;
 }
 
 export const DEFAULT_DURATION_SECONDS: Record<ImageType, number> = {

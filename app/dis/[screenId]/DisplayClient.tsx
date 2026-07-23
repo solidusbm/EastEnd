@@ -3,9 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { IMAGE_TYPES, type ImageRecord, type ImageType, type Screen } from "@/lib/types";
 
+interface DisplayOverride {
+  active: true;
+  message?: string;
+  imageUrl: string | null;
+}
+
 interface DisplayData {
   screen: Screen;
   imagesByType: Record<ImageType, ImageRecord[]>;
+  emergencyOverride: DisplayOverride | null;
 }
 
 interface CycleState {
@@ -149,6 +156,10 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     return <Placeholder title="Loading…" subtitle="" />;
   }
 
+  if (data.emergencyOverride) {
+    return <EmergencyOverrideView override={data.emergencyOverride} />;
+  }
+
   if (currentImages.length === 0) {
     return (
       <Placeholder
@@ -174,6 +185,28 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+function EmergencyOverrideView({ override }: { override: DisplayOverride }) {
+  if (override.imageUrl) {
+    return (
+      <div className="fixed inset-0 overflow-hidden bg-black">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={override.imageUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
+        {override.message && (
+          <div className="absolute inset-x-0 bottom-0 bg-black/80 px-8 py-6 text-center">
+            <p className="text-2xl font-semibold text-white">{override.message}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-8 text-center">
+      <p className="max-w-3xl text-4xl font-semibold text-white">{override.message}</p>
     </div>
   );
 }

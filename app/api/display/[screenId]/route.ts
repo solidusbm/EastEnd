@@ -25,8 +25,18 @@ export async function GET(
       .filter((img): img is ImageRecord => Boolean(img));
   }
 
+  const override = store.emergencyOverride.active
+    ? {
+        active: true as const,
+        message: store.emergencyOverride.message,
+        imageUrl: store.emergencyOverride.imageId
+          ? (imageById.get(store.emergencyOverride.imageId)?.url ?? null)
+          : null,
+      }
+    : null;
+
   return NextResponse.json(
-    { screen, imagesByType },
+    { screen, imagesByType, emergencyOverride: override },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
