@@ -287,8 +287,9 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       setBackupNowMessage({
         text:
           data.backedUp === 0 && data.failed === 0
-            ? "Everything's already backed up."
-            : `Backed up ${data.backedUp}.` + (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
+            ? `Everything's already up to date (${data.upToDate} checked).`
+            : `Backed up ${data.backedUp}, ${data.upToDate} already up to date.` +
+              (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
         tone: data.failed > 0 ? "error" : "success",
       });
     } catch {
@@ -566,8 +567,9 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
             {backingUp ? "Backing up…" : "Back up now"}
           </button>
           <span className="text-[11px] text-zinc-400">
-            Backs up any current image that missed its automatic backup — e.g. anything
-            uploaded before this was configured.
+            Backs up every current image, checked by content — catches anything uploaded
+            before this was configured, and re-uploads anything that&apos;s changed since
+            its last backup, even under the same filename.
           </span>
           <MessageText message={backupNowMessage} />
         </div>

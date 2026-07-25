@@ -4,8 +4,17 @@
 // never touches this backup; it's a one-way archive. Images are stored under
 // backups/<type>/<filename> so a later restore (see importGithubBackup)
 // knows each image's category without needing separately-backed-up metadata.
+import { createHash } from "crypto";
 import { readSettings } from "./settings";
 import { IMAGE_TYPES, type ImageType } from "./types";
+
+/** Git's own blob hash (sha1("blob " + size + "\0" + content)) -- lets us tell
+ * whether local content actually differs from what's already backed up,
+ * rather than assuming a filename match means the content is unchanged. */
+function gitBlobSha(content: Buffer): string {
+  const header = Buffer.from(`blob ${content.length}\0`, "utf8");
+  return createHash("sha1").update(Buffer.concat([header, content])).digest("hex");
+}
 
 const API_BASE = "https://api.github.com";
 
@@ -90,20 +99,28 @@ async function getExistingFileSha(config: GithubBackupConfig, path: string): Pro
 
 /**
  * Uploads (or updates) a file at backups/<type>/<filename> on the
- * configured branch. Best-effort: callers should not await this on the
- * critical path of a request -- fire it and log/ignore failures.
+ * configured branch. If a file already exists at that path, its content is
+ * compared (via git's own blob hash) against what we're about to upload --
+ * a same-name file with different content is still an update, never
+ * silently skipped; only byte-identical content is skipped. Returns whether
+ * anything was actually written. Best-effort: callers should not await this
+ * on the critical path of a request -- fire it and log/ignore failures.
  */
 export async function backupImageToGithub(
   type: ImageType,
   filename: string,
   content: Buffer
-): Promise<void> {
+): Promise<boolean> {
   const config = await getGithubBackupConfig();
-  if (!config) return;
+  if (!config) return false;
 
   const path = `backups/${type}/${filename}`;
   await ensureBranchExists(config);
   const existingSha = await getExistingFileSha(config, path);
+
+  if (existingSha && existingSha === gitBlobSha(content)) {
+    return false; // Already backed up with identical content -- nothing to do.
+  }
 
   const res = await fetch(`${API_BASE}/repos/${config.owner}/${config.repo}/contents/${path}`, {
     method: "PUT",
@@ -119,6 +136,7 @@ export async function backupImageToGithub(
     const text = await res.text().catch(() => "");
     throw new Error(`Uploading backup failed (${res.status}): ${text}`);
   }
+  return true;
 }
 
 /** Fire-and-forget wrapper: never throws, just logs on failure. No-ops if unconfigured. */
