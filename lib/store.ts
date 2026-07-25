@@ -54,6 +54,7 @@ function normalizeScreen(raw: Record<string, unknown>): Screen {
     imageDurationOverrides: normalizeImageDurationOverrides(raw.imageDurationOverrides),
     scheduleRules: normalizeScheduleRules(raw.scheduleRules),
     lastSeenAt: typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : undefined,
+    signageSyncedAt: typeof raw.signageSyncedAt === "string" ? raw.signageSyncedAt : undefined,
   };
 }
 

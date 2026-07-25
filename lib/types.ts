@@ -19,6 +19,13 @@ export interface ImageRecord {
   canvaDesignId?: string;
   /** When this image was last refreshed from the linked Canva design. */
   canvaSyncedAt?: string;
+  /**
+   * Set (to the remote's uploaded_at) when this image is mirrored from the
+   * hosted admin panel's signage tab, not created locally -- see
+   * lib/signageSync.ts. Marks it as owned by that sync: removed locally if
+   * it's deleted remotely, never treated as a local-only image to preserve.
+   */
+  signageSyncedAt?: string;
 }
 
 /**
@@ -56,6 +63,8 @@ export interface Screen {
   scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */
   lastSeenAt?: string;
+  /** Set when this screen is mirrored from the hosted admin panel's signage tab -- see lib/signageSync.ts. */
+  signageSyncedAt?: string;
 }
 
 /**
