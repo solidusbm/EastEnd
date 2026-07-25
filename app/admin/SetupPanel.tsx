@@ -76,6 +76,8 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
   const [githubSaving, setGithubSaving] = useState(false);
   const [githubTesting, setGithubTesting] = useState(false);
   const [githubMessage, setGithubMessage] = useState<Message>(null);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupNowMessage, setBackupNowMessage] = useState<Message>(null);
 
   const [backupsInfo, setBackupsInfo] = useState<BackupsInfo | null>(null);
   const [checkingBackups, setCheckingBackups] = useState(false);
@@ -269,6 +271,30 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       setGithubMessage({ text: "Network error. Please try again.", tone: "error" });
     } finally {
       setGithubTesting(false);
+    }
+  }
+
+  async function backupNow() {
+    setBackingUp(true);
+    setBackupNowMessage(null);
+    try {
+      const res = await fetch("/api/admin/github-backups/run", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setBackupNowMessage({ text: data.error ?? "Backup failed.", tone: "error" });
+        return;
+      }
+      setBackupNowMessage({
+        text:
+          data.backedUp === 0 && data.failed === 0
+            ? "Everything's already backed up."
+            : `Backed up ${data.backedUp}.` + (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
+        tone: data.failed > 0 ? "error" : "success",
+      });
+    } catch {
+      setBackupNowMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setBackingUp(false);
     }
   }
 
@@ -527,7 +553,23 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
           >
             {githubTesting ? "Testing…" : "Test connection"}
           </button>
-          <MessageText message={githubMessage} />
+        </div>
+        <MessageText message={githubMessage} />
+
+        <div className="flex items-center gap-3 border-t border-zinc-200 dark:border-zinc-800 pt-3">
+          <button
+            type="button"
+            onClick={backupNow}
+            disabled={backingUp || !githubToken || !githubRepo}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {backingUp ? "Backing up…" : "Back up now"}
+          </button>
+          <span className="text-[11px] text-zinc-400">
+            Backs up any current image that missed its automatic backup — e.g. anything
+            uploaded before this was configured.
+          </span>
+          <MessageText message={backupNowMessage} />
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { backupImageToGithubBestEffort } from "./githubBackup";
@@ -50,6 +50,15 @@ export async function restoreUpload(filename: string, content: Buffer): Promise<
   await mkdir(UPLOADS_DIR, { recursive: true });
   await writeFile(path.join(UPLOADS_DIR, filename), content);
   return `${UPLOADS_URL_PREFIX}${filename}`;
+}
+
+/** Reads an already-saved upload's raw bytes by filename, for re-backing-up existing images. */
+export async function readUploadFile(filename: string): Promise<Buffer | null> {
+  try {
+    return await readFile(path.join(UPLOADS_DIR, filename));
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteUpload(url: string): Promise<void> {
