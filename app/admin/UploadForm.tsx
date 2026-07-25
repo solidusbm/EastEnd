@@ -108,7 +108,7 @@ export default function UploadForm({ onUploaded }: { onUploaded: () => void }) {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              className="text-sm text-zinc-600 dark:text-zinc-400"
+              className="text-sm text-zinc-600 dark:text-zinc-400 file:mr-3 file:appearance-none file:rounded-md file:border-0 file:bg-zinc-900 dark:file:bg-zinc-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white dark:file:text-zinc-900 file:cursor-pointer hover:file:opacity-90"
             />
           </div>
         ) : (
