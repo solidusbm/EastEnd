@@ -9,8 +9,6 @@ import {
   type Screen,
 } from "@/lib/types";
 
-const SLUG_PATTERN = /^[a-zA-Z0-9_-]{1,50}$/;
-
 export async function GET() {
   const store = await readStore();
   return NextResponse.json({ screens: store.screens });
@@ -21,6 +19,24 @@ function toPositiveInt(value: unknown, fallback: number): number {
   return Number.isFinite(num) && num > 0 ? Math.round(num) : fallback;
 }
 
+function slugify(name: string): string {
+  const base = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+  return base.length > 0 ? base : "screen";
+}
+
+function uniqueSlug(name: string, existingIds: Set<string>): string {
+  const base = slugify(name);
+  if (!existingIds.has(base)) return base;
+  let n = 2;
+  while (existingIds.has(`${base}-${n}`)) n += 1;
+  return `${base}-${n}`;
+}
+
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -29,24 +45,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const id = body.id;
   const name = body.name;
 
-  if (typeof id !== "string" || !SLUG_PATTERN.test(id)) {
-    return NextResponse.json(
-      { error: "id must be 1-50 characters of letters, numbers, hyphens, or underscores." },
-      { status: 400 }
-    );
-  }
   if (typeof name !== "string" || name.trim().length === 0) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
   }
 
   return withStoreLock(async () => {
     const store = await readStore();
-    if (store.screens.some((screen) => screen.id === id)) {
-      return NextResponse.json({ error: `Screen id "${id}" already exists.` }, { status: 409 });
-    }
+    const id = uniqueSlug(name, new Set(store.screens.map((screen) => screen.id)));
 
     const screen: Screen = {
       id,
