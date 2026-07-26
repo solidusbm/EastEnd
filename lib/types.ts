@@ -15,6 +15,8 @@ export interface ImageRecord {
   type: ImageType;
   label: string;
   uploadedAt: string;
+  /** When true, the display overlays this image's label as a caption whenever it's shown. Defaults to false/absent (off). */
+  showLabel?: boolean;
   /** Canva design this image is linked to, if imported/synced from Canva. */
   canvaDesignId?: string;
   /** When this image was last refreshed from the linked Canva design. */
@@ -50,6 +52,33 @@ export interface ScheduleRule {
   imageId?: string;
 }
 
+/**
+ * "category": the normal rotation -- cycle each category as a block for its
+ * durationSecondsByType, walking imageIdsByType within it (the original
+ * behavior). "fineGrain": ignore category grouping/durations entirely and
+ * play `playlist` as one flat, manually ordered sequence instead. Either
+ * way, an active ScheduleRule still overrides on top -- it's a temporary
+ * single-category takeover regardless of which mode is selected.
+ */
+export type TimingMode = "category" | "fineGrain";
+
+/**
+ * Picture-in-picture: an independent second rotation, overlaid in a corner
+ * on top of the screen's normal rotation. Mirrors the main rotation's own
+ * shape (its own timingMode, category images/durations, and fine-grain
+ * playlist) so it works exactly like a second, smaller screen layered on
+ * top of the first -- enabling it never changes the main rotation.
+ */
+export interface PipConfig {
+  enabled: boolean;
+  timingMode: TimingMode;
+  imageIdsByType: Record<ImageType, string[]>;
+  durationSecondsByType: Record<ImageType, number>;
+  perImageDurationSeconds: number;
+  imageDurationOverrides: Record<string, number>;
+  playlist: string[];
+}
+
 export interface Screen {
   id: string;
   name: string;
@@ -59,6 +88,17 @@ export interface Screen {
   perImageDurationSeconds: number;
   /** Per-image duration override (seconds), keyed by image id. Falls back to perImageDurationSeconds when absent. */
   imageDurationOverrides: Record<string, number>;
+  /** Which of the two display models below is active. Defaults to "category" so existing screens keep behaving exactly as before. */
+  timingMode: TimingMode;
+  /**
+   * Flat, manually ordered list of image ids (any category, mix freely)
+   * used only when timingMode is "fineGrain". Duration per entry comes from
+   * imageDurationOverrides/perImageDurationSeconds, same as category mode --
+   * this only overrides order and category grouping, not the duration model.
+   */
+  playlist: string[];
+  /** Independent overlay rotation shown in a corner on top of the above. See PipConfig. */
+  pip: PipConfig;
   /** Time-based auto-switching; first matching rule wins. See ScheduleRule. */
   scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */
@@ -84,9 +124,25 @@ export interface EmergencyOverride {
 
 export const DEFAULT_EMERGENCY_OVERRIDE: EmergencyOverride = { active: false };
 
+/**
+ * A reusable, named fine-grain playlist -- built once in the playlist
+ * library and then loaded into any screen's `playlist`/`imageDurationOverrides`
+ * (a copy, not a live link: editing a saved playlist later doesn't retroactively
+ * change screens that already loaded it). Also what gets mirrored to GitHub
+ * backups, keyed by image filename rather than id since ids are re-minted
+ * on import -- see lib/githubBackup.ts.
+ */
+export interface SavedPlaylist {
+  id: string;
+  name: string;
+  imageIds: string[];
+  imageDurationOverrides: Record<string, number>;
+}
+
 export interface StoreData {
   images: ImageRecord[];
   screens: Screen[];
+  savedPlaylists: SavedPlaylist[];
   emergencyOverride: EmergencyOverride;
 }
 
@@ -100,7 +156,23 @@ export const DEFAULT_DURATION_SECONDS: Record<ImageType, number> = {
 export const DEFAULT_SCREEN_DEFAULTS = {
   durationSecondsByType: DEFAULT_DURATION_SECONDS,
   perImageDurationSeconds: 10,
+  // New screens start in fine-grain mode -- category timing is still there
+  // as the alternative, just no longer the default.
+  timingMode: "fineGrain" as TimingMode,
+  playlist: [] as string[],
 };
+
+export function defaultPipConfig(): PipConfig {
+  return {
+    enabled: false,
+    timingMode: "fineGrain",
+    imageIdsByType: { menu: [], food: [], location: [], promo: [] },
+    durationSecondsByType: { ...DEFAULT_DURATION_SECONDS },
+    perImageDurationSeconds: 10,
+    imageDurationOverrides: {},
+    playlist: [],
+  };
+}
 
 /** Reads `input[type]` for each known image type, keeping only string entries. */
 export function normalizeImageIdsByType(input: unknown): Record<ImageType, string[]> {
@@ -126,6 +198,34 @@ export function normalizeImageDurationOverrides(input: unknown): Record<string, 
     }
   }
   return result;
+}
+
+/** Reads a flat list of image ids for fine-grain playlist mode, dropping any non-string entries. */
+export function normalizePlaylist(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((v): v is string => typeof v === "string");
+}
+
+/** Reads and validates an array of saved playlists, dropping any malformed entries. */
+export function normalizeSavedPlaylists(input: unknown): SavedPlaylist[] {
+  if (!Array.isArray(input)) return [];
+  const result: SavedPlaylist[] = [];
+  for (const raw of input) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const playlist = raw as Record<string, unknown>;
+    if (typeof playlist.id !== "string" || !playlist.id) continue;
+    result.push({
+      id: playlist.id,
+      name: typeof playlist.name === "string" ? playlist.name : "",
+      imageIds: normalizePlaylist(playlist.imageIds),
+      imageDurationOverrides: normalizeImageDurationOverrides(playlist.imageDurationOverrides),
+    });
+  }
+  return result;
+}
+
+export function normalizeTimingMode(input: unknown): TimingMode {
+  return input === "fineGrain" ? "fineGrain" : "category";
 }
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -178,4 +278,21 @@ export function normalizeDurationSecondsByType(
     result[type] = Number.isFinite(num) && num >= 0 ? Math.round(num) : fallback[type];
   }
   return result;
+}
+
+/** Reads and validates a PipConfig, falling back to sensible defaults for any missing/invalid parts. */
+export function normalizePipConfig(input: unknown): PipConfig {
+  const source = (input ?? {}) as Record<string, unknown>;
+  const fallback = defaultPipConfig();
+  const num =
+    typeof source.perImageDurationSeconds === "number" ? source.perImageDurationSeconds : Number(source.perImageDurationSeconds);
+  return {
+    enabled: source.enabled === true,
+    timingMode: normalizeTimingMode(source.timingMode),
+    imageIdsByType: normalizeImageIdsByType(source.imageIdsByType),
+    durationSecondsByType: normalizeDurationSecondsByType(source.durationSecondsByType, fallback.durationSecondsByType),
+    perImageDurationSeconds: Number.isFinite(num) && num > 0 ? Math.round(num) : fallback.perImageDurationSeconds,
+    imageDurationOverrides: normalizeImageDurationOverrides(source.imageDurationOverrides),
+    playlist: normalizePlaylist(source.playlist),
+  };
 }

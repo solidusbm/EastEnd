@@ -60,6 +60,9 @@ export async function PATCH(
         }
         image.type = body.type as ImageType;
       }
+      if (typeof body.showLabel === "boolean") {
+        image.showLabel = body.showLabel;
+      }
       if (body.unlinkCanva === true) {
         delete image.canvaDesignId;
         delete image.canvaSyncedAt;

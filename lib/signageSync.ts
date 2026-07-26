@@ -1,6 +1,6 @@
 import { readStore, withStoreLock, writeStore } from "./store";
 import { deleteUpload, saveUpload } from "./uploads";
-import type { ImageRecord, ImageType, Screen } from "./types";
+import { defaultPipConfig, type ImageRecord, type ImageType, type Screen } from "./types";
 
 const POLL_INTERVAL_MS = 2 * 60 * 1000;
 const INITIAL_DELAY_MS = 10_000;
@@ -86,6 +86,11 @@ async function syncOnce(): Promise<void> {
     durationSecondsByType: s.duration_seconds_by_type,
     perImageDurationSeconds: s.per_image_duration_seconds,
     imageDurationOverrides: {},
+    // The hosted admin panel doesn't have fine-grain playlist mode -- synced
+    // screens always come in as plain category timing.
+    timingMode: "category",
+    playlist: [],
+    pip: defaultPipConfig(),
     scheduleRules: [],
     signageSyncedAt: s.updated_at,
   }));

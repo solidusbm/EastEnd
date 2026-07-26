@@ -6,7 +6,11 @@ import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
   normalizeImageIdsByType,
+  normalizePipConfig,
+  normalizePlaylist,
+  normalizeSavedPlaylists,
   normalizeScheduleRules,
+  normalizeTimingMode,
   type EmergencyOverride,
   type Screen,
   type StoreData,
@@ -52,6 +56,9 @@ function normalizeScreen(raw: Record<string, unknown>): Screen {
       DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
     ),
     imageDurationOverrides: normalizeImageDurationOverrides(raw.imageDurationOverrides),
+    timingMode: normalizeTimingMode(raw.timingMode),
+    playlist: normalizePlaylist(raw.playlist),
+    pip: normalizePipConfig(raw.pip),
     scheduleRules: normalizeScheduleRules(raw.scheduleRules),
     lastSeenAt: typeof raw.lastSeenAt === "string" ? raw.lastSeenAt : undefined,
     signageSyncedAt: typeof raw.signageSyncedAt === "string" ? raw.signageSyncedAt : undefined,
@@ -75,7 +82,7 @@ export async function readStore(): Promise<StoreData> {
     raw = await readFile(CONFIG_PATH, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return { images: [], screens: [], emergencyOverride: DEFAULT_EMERGENCY_OVERRIDE };
+      return { images: [], screens: [], savedPlaylists: [], emergencyOverride: DEFAULT_EMERGENCY_OVERRIDE };
     }
     throw err;
   }
@@ -83,11 +90,13 @@ export async function readStore(): Promise<StoreData> {
   const data = JSON.parse(raw) as {
     images?: StoreData["images"];
     screens?: Record<string, unknown>[];
+    savedPlaylists?: unknown;
     emergencyOverride?: unknown;
   };
   return {
     images: data.images ?? [],
     screens: (data.screens ?? []).map(normalizeScreen),
+    savedPlaylists: normalizeSavedPlaylists(data.savedPlaylists),
     emergencyOverride: normalizeEmergencyOverride(data.emergencyOverride),
   };
 }

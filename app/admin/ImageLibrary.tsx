@@ -53,6 +53,20 @@ export default function ImageLibrary({
     }
   }
 
+  async function saveShowLabel(image: ImageRecord, showLabel: boolean) {
+    setSavingId(image.id);
+    try {
+      const res = await fetch(`/api/admin/images/${image.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ showLabel }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function replaceImage(image: ImageRecord, file: File) {
     setReplacingId(image.id);
     try {
@@ -182,6 +196,18 @@ export default function ImageLibrary({
                 </option>
               ))}
             </select>
+            <label
+              className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400"
+              title="Overlay this image's label as a caption whenever it's shown on a display"
+            >
+              <input
+                type="checkbox"
+                checked={image.showLabel === true}
+                onChange={(e) => saveShowLabel(image, e.target.checked)}
+                disabled={savingId === image.id}
+              />
+              Show label on display
+            </label>
             {image.canvaDesignId && (
               <div className="flex items-center gap-2 text-xs">
                 <button

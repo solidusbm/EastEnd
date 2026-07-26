@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ImageRecord, Screen } from "@/lib/types";
+import type { ImageRecord, SavedPlaylist, Screen } from "@/lib/types";
 import UploadForm from "./UploadForm";
 import ImageLibrary from "./ImageLibrary";
 import ScreenCard from "./ScreenCard";
@@ -12,18 +12,26 @@ import OpenUploadsFolder from "./OpenUploadsFolder";
 import ThemeToggle from "../ThemeToggle";
 import EmergencyOverrideBanner from "./EmergencyOverrideBanner";
 import BulkEditPanel from "./BulkEditPanel";
+import PlaylistLibrary from "./PlaylistLibrary";
 
 interface AdminDashboardProps {
   initialImages: ImageRecord[];
   initialScreens: Screen[];
+  initialSavedPlaylists: SavedPlaylist[];
 }
 
-export default function AdminDashboard({ initialImages, initialScreens }: AdminDashboardProps) {
+export default function AdminDashboard({
+  initialImages,
+  initialScreens,
+  initialSavedPlaylists,
+}: AdminDashboardProps) {
   const router = useRouter();
   const [images, setImages] = useState<ImageRecord[]>(initialImages);
   const [screens, setScreens] = useState<Screen[]>(initialScreens);
+  const [savedPlaylists, setSavedPlaylists] = useState<SavedPlaylist[]>(initialSavedPlaylists);
   const [screensOpen, setScreensOpen] = useState(true);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [playlistsOpen, setPlaylistsOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
 
   const reloadImages = useCallback(async () => {
@@ -39,6 +47,14 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
     if (res.ok) {
       const data = await res.json();
       setScreens(data.screens);
+    }
+  }, []);
+
+  const reloadSavedPlaylists = useCallback(async () => {
+    const res = await fetch("/api/admin/playlists", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      setSavedPlaylists(data.savedPlaylists);
     }
   }, []);
 
@@ -98,11 +114,35 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
                 key={screen.id}
                 screen={screen}
                 images={images}
+                savedPlaylists={savedPlaylists}
                 onUpdated={reloadScreens}
                 onDeleted={reloadScreens}
+                onPlaylistsChanged={reloadSavedPlaylists}
+                onImagesChanged={reloadImages}
               />
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <button
+          type="button"
+          onClick={() => setPlaylistsOpen((open) => !open)}
+          className="flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900"
+        >
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+            Saved playlists ({savedPlaylists.length})
+          </h2>
+          <span className="text-sm text-zinc-500">{playlistsOpen ? "Hide ▲" : "Show ▼"}</span>
+        </button>
+        {playlistsOpen && (
+          <PlaylistLibrary
+            savedPlaylists={savedPlaylists}
+            images={images}
+            onChanged={reloadSavedPlaylists}
+            onImagesChanged={reloadImages}
+          />
         )}
       </section>
 
@@ -145,7 +185,9 @@ export default function AdminDashboard({ initialImages, initialScreens }: AdminD
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Setup</h2>
           <span className="text-sm text-zinc-500">{setupOpen ? "Hide ▲" : "Show ▼"}</span>
         </button>
-        {setupOpen && <SetupPanel onImported={reloadImages} />}
+        {setupOpen && (
+          <SetupPanel onImported={reloadImages} onPlaylistsImported={reloadSavedPlaylists} />
+        )}
       </section>
     </div>
   );

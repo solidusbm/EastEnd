@@ -4,7 +4,10 @@ import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
   normalizeImageIdsByType,
+  normalizePipConfig,
+  normalizePlaylist,
   normalizeScheduleRules,
+  normalizeTimingMode,
 } from "@/lib/types";
 
 export async function GET(
@@ -64,6 +67,15 @@ export async function PUT(
     }
     if (body.imageDurationOverrides !== undefined) {
       screen.imageDurationOverrides = normalizeImageDurationOverrides(body.imageDurationOverrides);
+    }
+    if (body.timingMode !== undefined) {
+      screen.timingMode = normalizeTimingMode(body.timingMode);
+    }
+    if (body.playlist !== undefined) {
+      screen.playlist = normalizePlaylist(body.playlist);
+    }
+    if (body.pip !== undefined) {
+      screen.pip = normalizePipConfig(body.pip);
     }
     if (body.scheduleRules !== undefined) {
       screen.scheduleRules = normalizeScheduleRules(body.scheduleRules);

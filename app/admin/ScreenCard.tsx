@@ -2,28 +2,17 @@
 
 import { useState } from "react";
 import {
-  DEFAULT_DURATION_SECONDS,
   IMAGE_TYPE_LABELS,
   IMAGE_TYPES,
   type ImageRecord,
   type ImageType,
+  type PipConfig,
+  type SavedPlaylist,
   type Screen,
+  type TimingMode,
 } from "@/lib/types";
-import ImagePickerModal from "./ImagePickerModal";
 import ScheduleEditor from "./ScheduleEditor";
-
-function toggleId(ids: string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id];
-}
-
-function moveId(ids: string[], id: string, direction: "up" | "down"): string[] {
-  const index = ids.indexOf(id);
-  const targetIndex = direction === "up" ? index - 1 : index + 1;
-  if (index === -1 || targetIndex < 0 || targetIndex >= ids.length) return ids;
-  const next = [...ids];
-  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
-  return next;
-}
+import TimingModeEditor from "./TimingModeEditor";
 
 // TVs poll /api/display/[screenId] every 45s, so allow a couple of missed
 // polls before flagging a screen as stale rather than reacting to it
@@ -59,13 +48,19 @@ function isOnlyCategory(type: ImageType, durations: Record<ImageType, number>): 
 export default function ScreenCard({
   screen,
   images,
+  savedPlaylists,
   onUpdated,
   onDeleted,
+  onPlaylistsChanged,
+  onImagesChanged,
 }: {
   screen: Screen;
   images: ImageRecord[];
+  savedPlaylists: SavedPlaylist[];
   onUpdated: () => void;
   onDeleted: () => void;
+  onPlaylistsChanged: () => void;
+  onImagesChanged: () => void;
 }) {
   const [name, setName] = useState(screen.name);
   const [durationSecondsByType, setDurationSecondsByType] = useState(screen.durationSecondsByType);
@@ -74,9 +69,12 @@ export default function ScreenCard({
   );
   const [imageIdsByType, setImageIdsByType] = useState(screen.imageIdsByType);
   const [imageDurationOverrides, setImageDurationOverrides] = useState(screen.imageDurationOverrides);
+  const [timingMode, setTimingMode] = useState<TimingMode>(screen.timingMode);
+  const [playlist, setPlaylist] = useState(screen.playlist);
+  const [pip, setPip] = useState<PipConfig>(screen.pip);
   const [scheduleRules, setScheduleRules] = useState(screen.scheduleRules);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [activePicker, setActivePicker] = useState<ImageType | null>(null);
+  const [pipOpen, setPipOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -97,63 +95,11 @@ export default function ScreenCard({
       setPerImageDurationSeconds(screen.perImageDurationSeconds);
       setImageIdsByType(screen.imageIdsByType);
       setImageDurationOverrides(screen.imageDurationOverrides);
+      setTimingMode(screen.timingMode);
+      setPlaylist(screen.playlist);
+      setPip(screen.pip);
       setScheduleRules(screen.scheduleRules);
     }
-  }
-
-  const imagesByType = Object.fromEntries(
-    IMAGE_TYPES.map((type) => [type, images.filter((image) => image.type === type)])
-  ) as Record<ImageType, ImageRecord[]>;
-
-  // Silences every other category, leaving `type` as the only one this
-  // screen cycles through.
-  function applyOnlyCategory(type: ImageType) {
-    setDurationSecondsByType((prev) => {
-      const next = { ...prev };
-      for (const t of IMAGE_TYPES) {
-        next[t] = t === type ? (prev[t] > 0 ? prev[t] : DEFAULT_DURATION_SECONDS[t]) : 0;
-      }
-      return next;
-    });
-  }
-
-  // Undoes applyOnlyCategory by giving every other category back its
-  // default duration (we don't track prior per-screen values to restore).
-  function restoreOtherCategories(exceptType: ImageType) {
-    setDurationSecondsByType((prev) => {
-      const next = { ...prev };
-      for (const t of IMAGE_TYPES) {
-        if (t !== exceptType) next[t] = DEFAULT_DURATION_SECONDS[t];
-      }
-      return next;
-    });
-  }
-
-  function toggleOnlyCategory(type: ImageType) {
-    setDirty(true);
-    if (isOnlyCategory(type, durationSecondsByType)) {
-      restoreOtherCategories(type);
-    } else {
-      applyOnlyCategory(type);
-    }
-  }
-
-  function isOnlyImage(type: ImageType, imageId: string): boolean {
-    return (
-      imageIdsByType[type].length === 1 &&
-      imageIdsByType[type][0] === imageId &&
-      isOnlyCategory(type, durationSecondsByType)
-    );
-  }
-
-  function toggleOnlyImage(type: ImageType, imageId: string) {
-    setDirty(true);
-    if (isOnlyImage(type, imageId)) {
-      restoreOtherCategories(type);
-      return;
-    }
-    setImageIdsByType((prev) => ({ ...prev, [type]: [imageId] }));
-    applyOnlyCategory(type);
   }
 
   async function handleSave() {
@@ -169,6 +115,9 @@ export default function ScreenCard({
           perImageDurationSeconds,
           imageIdsByType,
           imageDurationOverrides,
+          timingMode,
+          playlist,
+          pip,
           scheduleRules,
         }),
       });
@@ -208,9 +157,13 @@ export default function ScreenCard({
   const status = getScreenStatus(screen.lastSeenAt);
   const totalImages = IMAGE_TYPES.reduce((sum, type) => sum + imageIdsByType[type].length, 0);
   const onlyType = IMAGE_TYPES.find((type) => isOnlyCategory(type, durationSecondsByType));
-  const summary = onlyType
-    ? `Only ${IMAGE_TYPE_LABELS[onlyType]} · ${imageIdsByType[onlyType].length} image${imageIdsByType[onlyType].length === 1 ? "" : "s"}`
-    : `${totalImages} image${totalImages === 1 ? "" : "s"} across categories`;
+  const summary =
+    (timingMode === "fineGrain"
+      ? `Fine-grain playlist · ${playlist.length} image${playlist.length === 1 ? "" : "s"}`
+      : onlyType
+        ? `Only ${IMAGE_TYPE_LABELS[onlyType]} · ${imageIdsByType[onlyType].length} image${imageIdsByType[onlyType].length === 1 ? "" : "s"}`
+        : `${totalImages} image${totalImages === 1 ? "" : "s"} across categories`) +
+    (pip.enabled ? " · PiP on" : "");
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
@@ -273,68 +226,118 @@ export default function ScreenCard({
 
       {!collapsed && (
         <>
-          <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            Per-image duration (s)
-            <input
-              type="number"
-              min={1}
-              value={perImageDurationSeconds}
-              onChange={(e) => {
-                setDirty(true);
-                setPerImageDurationSeconds(Number(e.target.value));
-              }}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
-            />
-          </label>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {IMAGE_TYPES.map((type) => (
-              <div
-                key={type}
-                className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3"
+          <TimingModeEditor
+            images={images}
+            savedPlaylists={savedPlaylists}
+            onPlaylistsChanged={onPlaylistsChanged}
+            onImagesChanged={onImagesChanged}
+            timingMode={timingMode}
+            onTimingModeChange={(mode) => {
+              setDirty(true);
+              setTimingMode(mode);
+            }}
+            imageIdsByType={imageIdsByType}
+            onImageIdsByTypeChange={(fn) => {
+              setDirty(true);
+              setImageIdsByType(fn);
+            }}
+            durationSecondsByType={durationSecondsByType}
+            onDurationSecondsByTypeChange={(fn) => {
+              setDirty(true);
+              setDurationSecondsByType(fn);
+            }}
+            perImageDurationSeconds={perImageDurationSeconds}
+            onPerImageDurationSecondsChange={(seconds) => {
+              setDirty(true);
+              setPerImageDurationSeconds(seconds);
+            }}
+            playlist={playlist}
+            onPlaylistChange={(fn) => {
+              setDirty(true);
+              setPlaylist(fn);
+            }}
+            imageDurationOverrides={imageDurationOverrides}
+            onImageDurationOverridesChange={(fn) => {
+              setDirty(true);
+              setImageDurationOverrides(fn);
+            }}
+            extraModeButton={
+              <button
+                type="button"
+                title="Overlay an independent second rotation in a corner, on top of the rotation above -- its own timing, own images."
+                onClick={() => {
+                  setDirty(true);
+                  setPip((prev) => ({ ...prev, enabled: !prev.enabled }));
+                }}
+                className={`rounded-md px-3 py-1.5 ${
+                  pip.enabled
+                    ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {IMAGE_TYPE_LABELS[type]}
+                Picture-in-picture
+              </button>
+            }
+          />
+
+          {pip.enabled && (
+            <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+              <button
+                type="button"
+                onClick={() => setPipOpen((value) => !value)}
+                className="flex items-center justify-between text-left"
+              >
+                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Picture-in-picture overlay
+                </span>
+                <span className="text-xs text-zinc-500">{pipOpen ? "Hide ▲" : "Show ▼"}</span>
+              </button>
+              {pipOpen && (
+                <>
+                  <p className="text-[11px] text-zinc-400">
+                    Its own independent rotation, shown in a corner on top of the rotation above --
+                    configure its timing/images the same way.
                   </p>
-                  <label
-                    className="flex items-center gap-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-400"
-                    title={`Show only ${IMAGE_TYPE_LABELS[type]} on this screen`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isOnlyCategory(type, durationSecondsByType)}
-                      onChange={() => toggleOnlyCategory(type)}
-                    />
-                    Only
-                  </label>
-                </div>
-                <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  Duration (s)
-                  <input
-                    type="number"
-                    min={1}
-                    value={durationSecondsByType[type]}
-                    onChange={(e) => {
+                  <TimingModeEditor
+                    images={images}
+                    savedPlaylists={savedPlaylists}
+                    onPlaylistsChanged={onPlaylistsChanged}
+                    onImagesChanged={onImagesChanged}
+                    timingMode={pip.timingMode}
+                    onTimingModeChange={(mode) => {
                       setDirty(true);
-                      setDurationSecondsByType((prev) => ({
-                        ...prev,
-                        [type]: Number(e.target.value),
-                      }));
+                      setPip((prev) => ({ ...prev, timingMode: mode }));
                     }}
-                    className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                    imageIdsByType={pip.imageIdsByType}
+                    onImageIdsByTypeChange={(fn) => {
+                      setDirty(true);
+                      setPip((prev) => ({ ...prev, imageIdsByType: fn(prev.imageIdsByType) }));
+                    }}
+                    durationSecondsByType={pip.durationSecondsByType}
+                    onDurationSecondsByTypeChange={(fn) => {
+                      setDirty(true);
+                      setPip((prev) => ({ ...prev, durationSecondsByType: fn(prev.durationSecondsByType) }));
+                    }}
+                    perImageDurationSeconds={pip.perImageDurationSeconds}
+                    onPerImageDurationSecondsChange={(seconds) => {
+                      setDirty(true);
+                      setPip((prev) => ({ ...prev, perImageDurationSeconds: seconds }));
+                    }}
+                    playlist={pip.playlist}
+                    onPlaylistChange={(fn) => {
+                      setDirty(true);
+                      setPip((prev) => ({ ...prev, playlist: fn(prev.playlist) }));
+                    }}
+                    imageDurationOverrides={pip.imageDurationOverrides}
+                    onImageDurationOverridesChange={(fn) => {
+                      setDirty(true);
+                      setPip((prev) => ({ ...prev, imageDurationOverrides: fn(prev.imageDurationOverrides) }));
+                    }}
                   />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setActivePicker(type)}
-                  className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  Select {IMAGE_TYPE_LABELS[type]} images ({imageIdsByType[type].length})
-                </button>
-              </div>
-            ))}
-          </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
             <button
@@ -379,50 +382,6 @@ export default function ScreenCard({
             </button>
           </div>
         </>
-      )}
-
-      {activePicker && (
-        <ImagePickerModal
-          title={`Select ${IMAGE_TYPE_LABELS[activePicker]} images`}
-          images={imagesByType[activePicker]}
-          selectedIds={imageIdsByType[activePicker]}
-          onToggle={(id) => {
-            setDirty(true);
-            setImageIdsByType((prev) => ({
-              ...prev,
-              [activePicker]: toggleId(prev[activePicker], id),
-            }));
-          }}
-          onlyImageId={
-            imageIdsByType[activePicker].length === 1 &&
-            isOnlyCategory(activePicker, durationSecondsByType)
-              ? imageIdsByType[activePicker][0]
-              : null
-          }
-          onToggleOnly={(id) => toggleOnlyImage(activePicker, id)}
-          onMove={(id, direction) => {
-            setDirty(true);
-            setImageIdsByType((prev) => ({
-              ...prev,
-              [activePicker]: moveId(prev[activePicker], id, direction),
-            }));
-          }}
-          defaultDurationSeconds={perImageDurationSeconds}
-          durationOverrides={imageDurationOverrides}
-          onDurationChange={(id, seconds) => {
-            setDirty(true);
-            setImageDurationOverrides((prev) => {
-              const next = { ...prev };
-              if (seconds === undefined) {
-                delete next[id];
-              } else {
-                next[id] = seconds;
-              }
-              return next;
-            });
-          }}
-          onClose={() => setActivePicker(null)}
-        />
       )}
     </div>
   );

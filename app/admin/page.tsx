@@ -7,6 +7,10 @@ export default async function AdminPage() {
   const store = await readStore();
 
   return (
-    <AdminDashboard initialImages={store.images} initialScreens={store.screens} />
+    <AdminDashboard
+      initialImages={store.images}
+      initialScreens={store.screens}
+      initialSavedPlaylists={store.savedPlaylists}
+    />
   );
 }

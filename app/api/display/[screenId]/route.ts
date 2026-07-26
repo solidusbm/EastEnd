@@ -42,12 +42,22 @@ export async function GET(
   }
 
   const imageById = new Map<string, ImageRecord>(store.images.map((img) => [img.id, img]));
-  const imagesByType = {} as Record<ImageType, ImageRecord[]>;
-  for (const type of IMAGE_TYPES) {
-    imagesByType[type] = screen.imageIdsByType[type]
-      .map((id) => imageById.get(id))
-      .filter((img): img is ImageRecord => Boolean(img));
+
+  function resolveIds(ids: string[]): ImageRecord[] {
+    return ids.map((id) => imageById.get(id)).filter((img): img is ImageRecord => Boolean(img));
   }
+  function resolveImagesByType(idsByType: Record<ImageType, string[]>): Record<ImageType, ImageRecord[]> {
+    const result = {} as Record<ImageType, ImageRecord[]>;
+    for (const type of IMAGE_TYPES) {
+      result[type] = resolveIds(idsByType[type]);
+    }
+    return result;
+  }
+
+  const imagesByType = resolveImagesByType(screen.imageIdsByType);
+  const playlistImages = resolveIds(screen.playlist);
+  const pipImagesByType = resolveImagesByType(screen.pip.imageIdsByType);
+  const pipPlaylistImages = resolveIds(screen.pip.playlist);
 
   // A schedule rule temporarily behaves like locking the screen to just its
   // one category (optionally just one image), the same way the "Only"
@@ -77,7 +87,18 @@ export async function GET(
     : null;
 
   return NextResponse.json(
-    { screen: { ...screen, durationSecondsByType }, imagesByType, emergencyOverride: override },
+    {
+      screen: { ...screen, durationSecondsByType },
+      imagesByType,
+      playlistImages,
+      pipImagesByType,
+      pipPlaylistImages,
+      // A schedule rule is a temporary single-category takeover regardless
+      // of timingMode -- the display client uses this to fall back to
+      // category-cycle rendering even on a fine-grain screen while active.
+      scheduleActive: Boolean(activeRule),
+      emergencyOverride: override,
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

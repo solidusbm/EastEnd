@@ -6,7 +6,7 @@
 // knows each image's category without needing separately-backed-up metadata.
 import { createHash } from "crypto";
 import { readSettings } from "./settings";
-import { IMAGE_TYPES, type ImageType } from "./types";
+import { IMAGE_TYPES, type ImageRecord, type ImageType, type SavedPlaylist } from "./types";
 
 /** Git's own blob hash (sha1("blob " + size + "\0" + content)) -- lets us tell
  * whether local content actually differs from what's already backed up,
@@ -98,23 +98,19 @@ async function getExistingFileSha(config: GithubBackupConfig, path: string): Pro
 }
 
 /**
- * Uploads (or updates) a file at backups/<type>/<filename> on the
- * configured branch. If a file already exists at that path, its content is
- * compared (via git's own blob hash) against what we're about to upload --
- * a same-name file with different content is still an update, never
- * silently skipped; only byte-identical content is skipped. Returns whether
- * anything was actually written. Best-effort: callers should not await this
- * on the critical path of a request -- fire it and log/ignore failures.
+ * Uploads (or updates) a file at `path` on the configured branch. If a file
+ * already exists there, its content is compared (via git's own blob hash)
+ * against what we're about to upload -- a same-path file with different
+ * content is still an update, never silently skipped; only byte-identical
+ * content is skipped. Returns whether anything was actually written. Shared
+ * by both image and playlist backups below.
  */
-export async function backupImageToGithub(
-  type: ImageType,
-  filename: string,
-  content: Buffer
+async function putGithubFile(
+  config: GithubBackupConfig,
+  path: string,
+  content: Buffer,
+  message: string
 ): Promise<boolean> {
-  const config = await getGithubBackupConfig();
-  if (!config) return false;
-
-  const path = `backups/${type}/${filename}`;
   await ensureBranchExists(config);
   const existingSha = await getExistingFileSha(config, path);
 
@@ -126,7 +122,7 @@ export async function backupImageToGithub(
     method: "PUT",
     headers: { ...headers(config), "Content-Type": "application/json" },
     body: JSON.stringify({
-      message: `Back up ${filename}`,
+      message,
       content: content.toString("base64"),
       branch: config.branch,
       ...(existingSha ? { sha: existingSha } : {}),
@@ -139,10 +135,83 @@ export async function backupImageToGithub(
   return true;
 }
 
+/**
+ * Uploads (or updates) a file at backups/<type>/<filename> on the
+ * configured branch. Best-effort: callers should not await this on the
+ * critical path of a request -- fire it and log/ignore failures.
+ */
+export async function backupImageToGithub(
+  type: ImageType,
+  filename: string,
+  content: Buffer
+): Promise<boolean> {
+  const config = await getGithubBackupConfig();
+  if (!config) return false;
+  return putGithubFile(config, `backups/${type}/${filename}`, content, `Back up ${filename}`);
+}
+
 /** Fire-and-forget wrapper: never throws, just logs on failure. No-ops if unconfigured. */
 export function backupImageToGithubBestEffort(type: ImageType, filename: string, content: Buffer): void {
   backupImageToGithub(type, filename, content).catch((err) => {
     console.error(`[github-backup] Failed to back up ${filename}:`, err);
+  });
+}
+
+interface PlaylistBackupPayload {
+  name: string;
+  /**
+   * Images referenced by filename, not id -- ids are re-minted on every
+   * import (see app/api/admin/github-backups/import/route.ts), so filenames
+   * are the only stable, portable way to point back at "this image" across
+   * a backup/restore round trip.
+   */
+  imageFilenames: string[];
+  /** Same reasoning as imageFilenames -- keyed by filename, not image id. */
+  imageDurationOverrides: Record<string, number>;
+}
+
+/** Converts a SavedPlaylist's id-keyed fields into the filename-keyed shape backups use. */
+export function buildPlaylistBackupPayload(
+  playlist: Pick<SavedPlaylist, "name" | "imageIds" | "imageDurationOverrides">,
+  imageById: Map<string, ImageRecord>
+): PlaylistBackupPayload {
+  const imageFilenames: string[] = [];
+  const imageDurationOverrides: Record<string, number> = {};
+  for (const id of playlist.imageIds) {
+    const filename = imageById.get(id)?.url.split("/").pop();
+    if (!filename) continue;
+    imageFilenames.push(filename);
+    if (playlist.imageDurationOverrides[id] !== undefined) {
+      imageDurationOverrides[filename] = playlist.imageDurationOverrides[id];
+    }
+  }
+  return { name: playlist.name, imageFilenames, imageDurationOverrides };
+}
+
+/**
+ * Uploads (or updates) a saved playlist's data as JSON at
+ * backups/playlists/<id>.json. Like images, this is a one-way archive --
+ * deleting a saved playlist locally never removes its backup copy.
+ */
+export async function backupPlaylistToGithub(
+  id: string,
+  payload: PlaylistBackupPayload
+): Promise<boolean> {
+  const config = await getGithubBackupConfig();
+  if (!config) return false;
+  const content = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
+  return putGithubFile(
+    config,
+    `backups/playlists/${id}.json`,
+    content,
+    `Back up playlist "${payload.name}"`
+  );
+}
+
+/** Fire-and-forget wrapper: never throws, just logs on failure. No-ops if unconfigured. */
+export function backupPlaylistToGithubBestEffort(id: string, payload: PlaylistBackupPayload): void {
+  backupPlaylistToGithub(id, payload).catch((err) => {
+    console.error(`[github-backup] Failed to back up playlist ${id}:`, err);
   });
 }
 
@@ -172,6 +241,52 @@ export async function listGithubBackups(): Promise<Record<ImageType, string[]> |
     })
   );
   return result;
+}
+
+/**
+ * Lists every backed-up playlist, with its content already parsed -- unlike
+ * image backups (listed by filename only, downloaded on demand since they
+ * can be large/numerous), playlist JSON is small enough to just fetch
+ * upfront for every entry. Returns null if GitHub backup isn't configured.
+ */
+export async function listGithubPlaylistBackups(): Promise<
+  { id: string; name: string; imageFilenames: string[]; imageDurationOverrides: Record<string, number> }[] | null
+> {
+  const config = await getGithubBackupConfig();
+  if (!config) return null;
+
+  const res = await fetch(
+    `${API_BASE}/repos/${config.owner}/${config.repo}/contents/backups/playlists?ref=${config.branch}`,
+    { headers: headers(config) }
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Listing backups/playlists failed (${res.status}).`);
+  const entries = (await res.json()) as { name: string; type: string }[];
+  const files = entries.filter((e) => e.type === "file" && e.name.endsWith(".json"));
+
+  const results = await Promise.all(
+    files.map(async (entry) => {
+      const id = entry.name.replace(/\.json$/, "");
+      try {
+        const fileRes = await fetch(
+          `${API_BASE}/repos/${config.owner}/${config.repo}/contents/backups/playlists/${entry.name}?ref=${config.branch}`,
+          { headers: { ...headers(config), Accept: "application/vnd.github.raw" } }
+        );
+        if (!fileRes.ok) throw new Error(`Downloading backups/playlists/${entry.name} failed (${fileRes.status}).`);
+        const payload = (await fileRes.json()) as PlaylistBackupPayload;
+        return {
+          id,
+          name: payload.name,
+          imageFilenames: Array.isArray(payload.imageFilenames) ? payload.imageFilenames : [],
+          imageDurationOverrides: payload.imageDurationOverrides ?? {},
+        };
+      } catch (err) {
+        console.error(`[github-backup] Failed to read playlist backup ${entry.name}:`, err);
+        return null;
+      }
+    })
+  );
+  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 /** Downloads a single backed-up file's raw bytes, regardless of size. */

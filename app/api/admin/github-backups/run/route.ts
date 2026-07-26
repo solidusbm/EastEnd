@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
-import { backupImageToGithub, isGithubBackupConfigured } from "@/lib/githubBackup";
+import {
+  backupImageToGithub,
+  backupPlaylistToGithub,
+  buildPlaylistBackupPayload,
+  isGithubBackupConfigured,
+} from "@/lib/githubBackup";
 import { readUploadFile } from "@/lib/uploads";
 import { readStore } from "@/lib/store";
 
 /**
- * Manually backs up every current image. Each one is checked against what's
- * already on GitHub by content (not just filename) -- see backupImageToGithub
- * -- so an image that was backed up before but has since changed under the
- * same filename still gets re-uploaded, not skipped.
+ * Manually backs up every current image and saved playlist. Each is checked
+ * against what's already on GitHub by content (not just filename/id) -- see
+ * backupImageToGithub/backupPlaylistToGithub -- so anything backed up before
+ * but since changed still gets re-uploaded, not skipped.
  */
 export async function POST() {
   if (!(await isGithubBackupConfigured())) {
@@ -43,5 +48,28 @@ export async function POST() {
     }
   }
 
-  return NextResponse.json({ backedUp, upToDate, failed });
+  let playlistsBackedUp = 0;
+  let playlistsUpToDate = 0;
+  let playlistsFailed = 0;
+  const imageById = new Map(store.images.map((img) => [img.id, img]));
+
+  for (const playlist of store.savedPlaylists) {
+    try {
+      const wrote = await backupPlaylistToGithub(playlist.id, buildPlaylistBackupPayload(playlist, imageById));
+      if (wrote) playlistsBackedUp += 1;
+      else playlistsUpToDate += 1;
+    } catch (err) {
+      console.error(`[github-backups] Manual backup failed for playlist ${playlist.name}:`, err);
+      playlistsFailed += 1;
+    }
+  }
+
+  return NextResponse.json({
+    backedUp,
+    upToDate,
+    failed,
+    playlistsBackedUp,
+    playlistsUpToDate,
+    playlistsFailed,
+  });
 }

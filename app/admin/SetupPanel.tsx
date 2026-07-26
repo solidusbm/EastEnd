@@ -22,9 +22,18 @@ interface BackupItem {
   alreadyImported: boolean;
 }
 
+interface PlaylistBackupItem {
+  id: string;
+  name: string;
+  imageFilenames: string[];
+  imageDurationOverrides: Record<string, number>;
+  alreadyImported: boolean;
+}
+
 interface BackupsInfo {
   configured: boolean;
   backups: Record<ImageType, BackupItem[]> | null;
+  playlistBackups: PlaylistBackupItem[] | null;
 }
 
 interface ServerInfo {
@@ -61,9 +70,11 @@ const MIN_PASSWORD_LENGTH = 8;
 interface SetupPanelProps {
   /** Called after a successful import so the image library reflects the new images. */
   onImported?: () => void;
+  /** Called after a successful import so the saved-playlists library reflects the new playlists. */
+  onPlaylistsImported?: () => void;
 }
 
-export default function SetupPanel({ onImported }: SetupPanelProps) {
+export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPanelProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -284,13 +295,13 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
         setBackupNowMessage({ text: data.error ?? "Backup failed.", tone: "error" });
         return;
       }
+      const totalFailed = data.failed + data.playlistsFailed;
       setBackupNowMessage({
         text:
-          data.backedUp === 0 && data.failed === 0
-            ? `Everything's already up to date (${data.upToDate} checked).`
-            : `Backed up ${data.backedUp}, ${data.upToDate} already up to date.` +
-              (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
-        tone: data.failed > 0 ? "error" : "success",
+          `Images: backed up ${data.backedUp}, ${data.upToDate} already up to date.` +
+          ` Playlists: backed up ${data.playlistsBackedUp}, ${data.playlistsUpToDate} already up to date.` +
+          (totalFailed > 0 ? ` ${totalFailed} failed -- see server logs.` : ""),
+        tone: totalFailed > 0 ? "error" : "success",
       });
     } catch {
       setBackupNowMessage({ text: "Network error. Please try again.", tone: "error" });
@@ -315,8 +326,8 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       }
       setBackupsInfo(data);
       const total = IMAGE_TYPES.reduce((sum, t) => sum + (data.backups?.[t]?.length ?? 0), 0);
-      if (total === 0) {
-        setBackupsMessage({ text: "No backed-up images found on GitHub yet.", tone: "success" });
+      if (total === 0 && (data.playlistBackups?.length ?? 0) === 0) {
+        setBackupsMessage({ text: "No backed-up images or playlists found on GitHub yet.", tone: "success" });
       }
     } catch {
       setBackupsMessage({ text: "Network error. Please try again.", tone: "error" });
@@ -330,7 +341,15 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
     const items = IMAGE_TYPES.flatMap((type) =>
       backupsInfo.backups![type].filter((b) => !b.alreadyImported).map((b) => ({ type, filename: b.filename }))
     );
-    if (items.length === 0) return;
+    const playlists = (backupsInfo.playlistBackups ?? [])
+      .filter((p) => !p.alreadyImported)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        imageFilenames: p.imageFilenames,
+        imageDurationOverrides: p.imageDurationOverrides,
+      }));
+    if (items.length === 0 && playlists.length === 0) return;
 
     setImportingBackups(true);
     setBackupsMessage(null);
@@ -338,7 +357,7 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       const res = await fetch("/api/admin/github-backups/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, playlists }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -347,11 +366,12 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
       }
       setBackupsMessage({
         text:
-          `Imported ${data.imported}.` +
-          (data.failed > 0 ? ` ${data.failed} failed -- see server logs.` : ""),
+          `Imported ${data.imported} image${data.imported === 1 ? "" : "s"} and ${data.playlistsImported} playlist${data.playlistsImported === 1 ? "" : "s"}.` +
+          (data.failed > 0 ? ` ${data.failed} image(s) failed -- see server logs.` : ""),
         tone: data.failed > 0 ? "error" : "success",
       });
       onImported?.();
+      onPlaylistsImported?.();
       await checkBackups();
     } catch {
       setBackupsMessage({ text: "Network error. Please try again.", tone: "error" });
@@ -471,10 +491,11 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
 
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">GitHub image backups</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">GitHub backups</h3>
           <p className="text-sm text-zinc-500">
-            Optional. Every image you upload or sync from Canva is also copied to a branch in a
-            GitHub repo, permanently — deleting it in the app later never removes the backup copy.
+            Optional. Every image you upload or sync from Canva, and every saved playlist, is also
+            copied to a branch in a GitHub repo, permanently — deleting either in the app later
+            never removes the backup copy.
           </p>
           <ol className="list-decimal space-y-1 pl-4 text-sm text-zinc-500">
             <li>
@@ -567,9 +588,9 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
             {backingUp ? "Backing up…" : "Back up now"}
           </button>
           <span className="text-[11px] text-zinc-400">
-            Backs up every current image, checked by content — catches anything uploaded
-            before this was configured, and re-uploads anything that&apos;s changed since
-            its last backup, even under the same filename.
+            Backs up every current image and saved playlist, checked by content — catches
+            anything created before this was configured, and re-uploads anything that&apos;s
+            changed since its last backup, even under the same filename/name.
           </span>
           <MessageText message={backupNowMessage} />
         </div>
@@ -581,12 +602,15 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
             Restore from GitHub backups
           </h3>
           <p className="text-sm text-zinc-500">
-            Pull previously backed-up images back into this install — useful after a reinstall or
-            a fresh clone, where <code>public/uploads/</code> and <code>data/config.json</code>{" "}
-            start out empty. Requires the GitHub backup settings above to be filled in and saved
-            first. Restored images land back in their original category, re-labeled from their
-            filename (any custom label or screen assignment isn&apos;t backed up, so those need
-            re-doing).
+            Pull previously backed-up images and playlists back into this install — useful after a
+            reinstall or a fresh clone, where <code>public/uploads/</code> and{" "}
+            <code>data/config.json</code> start out empty. Requires the GitHub backup settings
+            above to be filled in and saved first. Restored images land back in their original
+            category, re-labeled from their filename (any custom label or screen assignment
+            isn&apos;t backed up, so those need re-doing). Restored playlists reconnect to
+            whichever of their images end up present locally (importing both together in one go
+            resolves this automatically); any image that never makes it back is just dropped from
+            the restored playlist.
           </p>
         </div>
 
@@ -623,13 +647,30 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
                   </li>
                 );
               })}
+              {(() => {
+                const playlists = backupsInfo.playlistBackups ?? [];
+                const missing = playlists.filter((p) => !p.alreadyImported).length;
+                return (
+                  <li className="rounded-md border border-zinc-200 dark:border-zinc-800 px-3 py-2">
+                    <div className="font-medium text-zinc-900 dark:text-zinc-50">Playlists</div>
+                    <div className="text-zinc-500">
+                      {playlists.length} backed up
+                      {missing > 0 ? `, ${missing} new` : ""}
+                    </div>
+                  </li>
+                );
+              })()}
             </ul>
 
             {(() => {
-              const totalMissing = IMAGE_TYPES.reduce(
+              const totalMissingImages = IMAGE_TYPES.reduce(
                 (sum, t) => sum + backupsInfo.backups![t].filter((b) => !b.alreadyImported).length,
                 0
               );
+              const totalMissingPlaylists = (backupsInfo.playlistBackups ?? []).filter(
+                (p) => !p.alreadyImported
+              ).length;
+              const totalMissing = totalMissingImages + totalMissingPlaylists;
               return totalMissing > 0 ? (
                 <div className="flex items-center gap-3">
                   <button
@@ -638,7 +679,9 @@ export default function SetupPanel({ onImported }: SetupPanelProps) {
                     disabled={importingBackups}
                     className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
                   >
-                    {importingBackups ? "Importing…" : `Import ${totalMissing} new image${totalMissing === 1 ? "" : "s"}`}
+                    {importingBackups
+                      ? "Importing…"
+                      : `Import ${totalMissingImages} new image${totalMissingImages === 1 ? "" : "s"} and ${totalMissingPlaylists} playlist${totalMissingPlaylists === 1 ? "" : "s"}`}
                   </button>
                   <MessageText message={backupsMessage} />
                 </div>

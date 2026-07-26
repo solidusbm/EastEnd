@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ImageRecord } from "@/lib/types";
+import { IMAGE_TYPE_LABELS, type ImageRecord } from "@/lib/types";
 import PreviewLightbox from "./PreviewLightbox";
 
 export default function ImagePickerModal({
@@ -16,18 +16,25 @@ export default function ImagePickerModal({
   durationOverrides,
   onDurationChange,
   onClose,
+  showTypeLabels,
+  onShowLabelChange,
 }: {
   title: string;
   images: ImageRecord[];
   selectedIds: string[];
   onToggle: (id: string) => void;
-  onlyImageId: string | null;
-  onToggleOnly: (id: string) => void;
+  /** Omit (along with onToggleOnly) to hide the "Only" shortcut -- it means "only this category", which doesn't apply to a flat, cross-category picker like the fine-grain playlist. */
+  onlyImageId?: string | null;
+  onToggleOnly?: (id: string) => void;
   onMove: (id: string, direction: "up" | "down") => void;
   defaultDurationSeconds: number;
   durationOverrides: Record<string, number>;
   onDurationChange: (id: string, seconds: number | undefined) => void;
   onClose: () => void;
+  /** Show each image's category next to its label -- useful when `images` spans multiple categories (the fine-grain playlist picker). */
+  showTypeLabels?: boolean;
+  /** Omit to hide the "Show label" checkbox on selected images -- it edits the image itself (global, not scoped to this picker's playlist/rotation). */
+  onShowLabelChange?: (id: string, showLabel: boolean) => void;
 }) {
   const [previewImage, setPreviewImage] = useState<ImageRecord | null>(null);
 
@@ -105,7 +112,25 @@ export default function ImagePickerModal({
                     />
                     <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
                       {image.label || image.id}
+                      {showTypeLabels && (
+                        <span className="ml-1.5 text-xs text-zinc-400">
+                          ({IMAGE_TYPE_LABELS[image.type]})
+                        </span>
+                      )}
                     </span>
+                    {onShowLabelChange && (
+                      <label
+                        className="flex items-center gap-1 text-xs text-zinc-500"
+                        title="Overlay this image's label as a caption whenever it's shown on a display"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={image.showLabel === true}
+                          onChange={(e) => onShowLabelChange(image.id, e.target.checked)}
+                        />
+                        Label
+                      </label>
+                    )}
                     <label className="flex items-center gap-1 text-xs text-zinc-500">
                       <input
                         type="number"
@@ -167,22 +192,25 @@ export default function ImagePickerModal({
                           ✓
                         </span>
                       )}
-                      <label
-                        className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white"
-                        title="Show only this image on the screen"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={onlyImageId === image.id}
-                          onChange={() => onToggleOnly(image.id)}
-                          className="h-3 w-3"
-                        />
-                        Only
-                      </label>
+                      {onToggleOnly && (
+                        <label
+                          className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white"
+                          title="Show only this image on the screen"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={onlyImageId === image.id}
+                            onChange={() => onToggleOnly(image.id)}
+                            className="h-3 w-3"
+                          />
+                          Only
+                        </label>
+                      )}
                     </div>
                     <span className="truncate px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400">
                       {image.label || image.id}
+                      {showTypeLabels && ` (${IMAGE_TYPE_LABELS[image.type]})`}
                     </span>
                   </div>
                 );

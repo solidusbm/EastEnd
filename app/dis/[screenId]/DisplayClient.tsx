@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { IMAGE_TYPES, type ImageRecord, type ImageType, type Screen } from "@/lib/types";
+import { IMAGE_TYPES, type ImageRecord, type ImageType, type Screen, type TimingMode } from "@/lib/types";
 
 interface DisplayOverride {
   active: true;
@@ -12,6 +12,10 @@ interface DisplayOverride {
 interface DisplayData {
   screen: Screen;
   imagesByType: Record<ImageType, ImageRecord[]>;
+  playlistImages: ImageRecord[];
+  pipImagesByType: Record<ImageType, ImageRecord[]>;
+  pipPlaylistImages: ImageRecord[];
+  scheduleActive: boolean;
   emergencyOverride: DisplayOverride | null;
 }
 
@@ -24,21 +28,128 @@ interface CycleState {
   imageElapsed: number;
 }
 
+const INITIAL_CYCLE: CycleState = { type: IMAGE_TYPES[0], index: 0, categoryElapsed: 0, imageElapsed: 0 };
+
 const POLL_INTERVAL_MS = 45_000;
 
-function isAvailable(type: ImageType, data: DisplayData): boolean {
-  return data.imagesByType[type].length > 0 && data.screen.durationSecondsByType[type] > 0;
+/**
+ * Everything the cycle-advancing logic below needs, abstracted so the exact
+ * same code can drive either the main rotation or the independent
+ * picture-in-picture overlay rotation -- they're each just a differently
+ * sourced "rotation," see toMainSource/toPipSource.
+ */
+interface RotationSource {
+  imagesByType: Record<ImageType, ImageRecord[]>;
+  playlistImages: ImageRecord[];
+  durationSecondsByType: Record<ImageType, number>;
+  perImageDurationSeconds: number;
+  imageDurationOverrides: Record<string, number>;
+  timingMode: TimingMode;
+  playlistMode: boolean;
+}
+
+function toMainSource(data: DisplayData): RotationSource {
+  return {
+    imagesByType: data.imagesByType,
+    playlistImages: data.playlistImages,
+    durationSecondsByType: data.screen.durationSecondsByType,
+    perImageDurationSeconds: data.screen.perImageDurationSeconds,
+    imageDurationOverrides: data.screen.imageDurationOverrides,
+    timingMode: data.screen.timingMode,
+    // Fine-grain mode plays the flat, manually ordered playlist instead of
+    // cycling categories -- but a schedule rule is a temporary
+    // single-category takeover regardless of timingMode, so it always wins
+    // while active. Falls back to category mode if the playlist is empty.
+    playlistMode: data.screen.timingMode === "fineGrain" && !data.scheduleActive && data.playlistImages.length > 0,
+  };
+}
+
+// null when pip isn't enabled -- callers treat that as "nothing to advance/show."
+function toPipSource(data: DisplayData): RotationSource | null {
+  if (!data.screen.pip.enabled) return null;
+  return {
+    imagesByType: data.pipImagesByType,
+    playlistImages: data.pipPlaylistImages,
+    durationSecondsByType: data.screen.pip.durationSecondsByType,
+    perImageDurationSeconds: data.screen.pip.perImageDurationSeconds,
+    imageDurationOverrides: data.screen.pip.imageDurationOverrides,
+    timingMode: data.screen.pip.timingMode,
+    playlistMode: data.screen.pip.timingMode === "fineGrain" && data.pipPlaylistImages.length > 0,
+  };
+}
+
+function isAvailable(type: ImageType, source: RotationSource): boolean {
+  return source.imagesByType[type].length > 0 && source.durationSecondsByType[type] > 0;
 }
 
 // Walks the category order starting just after `from`, wrapping all the way
 // back around to `from` itself if it's the only available category.
-function nextAvailableType(from: ImageType, data: DisplayData): ImageType | null {
+function nextAvailableType(from: ImageType, source: RotationSource): ImageType | null {
   const startIndex = IMAGE_TYPES.indexOf(from);
   for (let offset = 1; offset <= IMAGE_TYPES.length; offset++) {
     const type = IMAGE_TYPES[(startIndex + offset) % IMAGE_TYPES.length];
-    if (isAvailable(type, data)) return type;
+    if (isAvailable(type, source)) return type;
   }
   return null;
+}
+
+// Advances a rotation's cycle state by one second. Shared by the main
+// rotation and the pip overlay -- pass `null` (nothing to advance, e.g. pip
+// disabled or no data yet) to get `prev` back unchanged.
+function advanceCycle(prev: CycleState, source: RotationSource | null): CycleState {
+  if (!source) return prev;
+
+  if (source.playlistMode) {
+    const images = source.playlistImages;
+    if (images.length === 0) return prev;
+    const currentImageId = images[prev.index % images.length]?.id;
+    const perImageDuration = Math.max(
+      1,
+      (currentImageId && source.imageDurationOverrides[currentImageId]) || source.perImageDurationSeconds
+    );
+    const imageElapsed = prev.imageElapsed + 1;
+    if (images.length > 1 && imageElapsed >= perImageDuration) {
+      return { ...prev, imageElapsed: 0, index: (prev.index + 1) % images.length };
+    }
+    return { ...prev, imageElapsed };
+  }
+
+  if (!IMAGE_TYPES.some((type) => isAvailable(type, source))) return prev;
+
+  const type = prev.type;
+  if (!isAvailable(type, source)) {
+    const next = nextAvailableType(type, source);
+    return next ? { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 } : prev;
+  }
+
+  const images = source.imagesByType[type];
+  const modeDuration = source.durationSecondsByType[type];
+
+  const categoryElapsed = prev.categoryElapsed + 1;
+  if (categoryElapsed >= modeDuration) {
+    const next = nextAvailableType(type, source) ?? type;
+    return { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 };
+  }
+
+  const currentImageId = images[prev.index % images.length]?.id;
+  const perImageDuration = Math.max(
+    1,
+    (currentImageId && source.imageDurationOverrides[currentImageId]) || source.perImageDurationSeconds
+  );
+
+  const imageElapsed = prev.imageElapsed + 1;
+  if (images.length > 1 && imageElapsed >= perImageDuration) {
+    return { type, categoryElapsed, imageElapsed: 0, index: (prev.index + 1) % images.length };
+  }
+  return { type, categoryElapsed, imageElapsed, index: prev.index };
+}
+
+/** Resolves a rotation source's current image, or null if it has nothing to show. */
+function currentImageOf(source: RotationSource | null, cycle: CycleState): ImageRecord | null {
+  if (!source) return null;
+  const images = source.playlistMode ? source.playlistImages : source.imagesByType[cycle.type];
+  if (images.length === 0) return null;
+  return images[cycle.index % images.length] ?? null;
 }
 
 export default function DisplayClient({ screenId }: { screenId: string }) {
@@ -46,12 +157,8 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   const [notFound, setNotFound] = useState(false);
   const dataRef = useRef<DisplayData | null>(null);
 
-  const [cycle, setCycle] = useState<CycleState>({
-    type: IMAGE_TYPES[0],
-    index: 0,
-    categoryElapsed: 0,
-    imageElapsed: 0,
-  });
+  const [cycle, setCycle] = useState<CycleState>(INITIAL_CYCLE);
+  const [pipCycle, setPipCycle] = useState<CycleState>(INITIAL_CYCLE);
 
   const [layers, setLayers] = useState<[string | null, string | null]>([null, null]);
   const [activeLayer, setActiveLayer] = useState<0 | 1>(0);
@@ -100,50 +207,23 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     };
   }, [screenId]);
 
-  // Advance the category cycle and per-image rotation once per second.
+  // Advance both the main rotation and the pip overlay's rotation once per second.
   useEffect(() => {
     const interval = setInterval(() => {
-      setCycle((prev) => {
-        const current = dataRef.current;
-        if (!current) return prev;
-
-        if (!IMAGE_TYPES.some((type) => isAvailable(type, current))) return prev;
-
-        const type = prev.type;
-        if (!isAvailable(type, current)) {
-          const next = nextAvailableType(type, current);
-          return next ? { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 } : prev;
-        }
-
-        const images = current.imagesByType[type];
-        const modeDuration = current.screen.durationSecondsByType[type];
-
-        const categoryElapsed = prev.categoryElapsed + 1;
-        if (categoryElapsed >= modeDuration) {
-          const next = nextAvailableType(type, current) ?? type;
-          return { type: next, index: 0, categoryElapsed: 0, imageElapsed: 0 };
-        }
-
-        const currentImageId = images[prev.index % images.length]?.id;
-        const perImageDuration = Math.max(
-          1,
-          (currentImageId && current.screen.imageDurationOverrides[currentImageId]) ||
-            current.screen.perImageDurationSeconds
-        );
-
-        const imageElapsed = prev.imageElapsed + 1;
-        if (images.length > 1 && imageElapsed >= perImageDuration) {
-          return { type, categoryElapsed, imageElapsed: 0, index: (prev.index + 1) % images.length };
-        }
-        return { type, categoryElapsed, imageElapsed, index: prev.index };
-      });
+      setCycle((prev) => advanceCycle(prev, dataRef.current ? toMainSource(dataRef.current) : null));
+      setPipCycle((prev) => advanceCycle(prev, dataRef.current ? toPipSource(dataRef.current) : null));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const currentImages = data ? data.imagesByType[cycle.type] : [];
-  const safeIndex = currentImages.length > 0 ? cycle.index % currentImages.length : 0;
-  const currentUrl = currentImages[safeIndex]?.url ?? null;
+  const mainSource = data ? toMainSource(data) : null;
+  const currentImage = currentImageOf(mainSource, cycle);
+  const currentUrl = currentImage?.url ?? null;
+  const currentLabel = currentImage?.showLabel && currentImage.label ? currentImage.label : null;
+
+  const pipSource = data ? toPipSource(data) : null;
+  const pipImage = currentImageOf(pipSource, pipCycle);
+  const pipUrl = pipImage?.url ?? null;
 
   // Crossfade between the previous and next image using two stacked layers.
   // Adjusting state during render (guarded by lastUrlRef) rather than in an
@@ -176,11 +256,15 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     return <EmergencyOverrideView override={data.emergencyOverride} />;
   }
 
-  if (currentImages.length === 0) {
+  if (!currentUrl) {
     return (
       <Placeholder
         title={data.screen.name}
-        subtitle="No images assigned to this screen yet. Add some in /admin."
+        subtitle={
+          data.screen.timingMode === "fineGrain"
+            ? "No images in the playlist yet. Add some in /admin."
+            : "No images assigned to this screen yet. Add some in /admin."
+        }
       />
     );
   }
@@ -201,6 +285,17 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
           />
         );
       })}
+      {currentLabel && (
+        <div className="absolute inset-x-0 bottom-0 bg-black/70 px-6 py-3 text-center">
+          <p className="text-lg font-medium text-white">{currentLabel}</p>
+        </div>
+      )}
+      {pipUrl && (
+        <div className="absolute right-4 top-4 w-1/4 min-w-[120px] max-w-[320px] overflow-hidden rounded-lg border-2 border-white/80 bg-black shadow-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pipUrl} alt="" className="aspect-video w-full object-contain" />
+        </div>
+      )}
     </div>
   );
 }

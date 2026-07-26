@@ -5,7 +5,10 @@ import {
   normalizeDurationSecondsByType,
   normalizeImageDurationOverrides,
   normalizeImageIdsByType,
+  normalizePipConfig,
+  normalizePlaylist,
   normalizeScheduleRules,
+  normalizeTimingMode,
   type Screen,
 } from "@/lib/types";
 
@@ -68,6 +71,9 @@ export async function POST(request: Request) {
         DEFAULT_SCREEN_DEFAULTS.perImageDurationSeconds
       ),
       imageDurationOverrides: normalizeImageDurationOverrides(body.imageDurationOverrides),
+      timingMode: normalizeTimingMode(body.timingMode),
+      playlist: normalizePlaylist(body.playlist),
+      pip: normalizePipConfig(body.pip),
       scheduleRules: normalizeScheduleRules(body.scheduleRules),
     };
 
