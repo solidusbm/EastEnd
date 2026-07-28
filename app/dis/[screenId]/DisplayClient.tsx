@@ -244,6 +244,7 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   const pipSource = data ? toPipSource(data) : null;
   const pipImage = currentImageOf(pipSource, pipCycle);
   const pipUrl = pipImage?.url ?? null;
+  const pipLabel = pipImage?.showLabel && pipImage.label ? pipImage.label : null;
 
   // Crossfade between the previous and next image using two stacked layers.
   // Adjusting state during render (guarded by lastUrlRef) rather than in an
@@ -317,6 +318,11 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pipUrl} alt="" className="aspect-video w-full object-contain" />
+          {pipLabel && (
+            <div className="absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-center">
+              <p className="truncate text-xs font-medium text-white">{pipLabel}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
