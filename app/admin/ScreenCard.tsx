@@ -261,43 +261,39 @@ export default function ScreenCard({
               setDirty(true);
               setImageDurationOverrides(fn);
             }}
-            extraModeButton={
-              <button
-                type="button"
-                title="Overlay an independent second rotation in a corner, on top of the rotation above -- its own timing, own images."
-                onClick={() => {
-                  setDirty(true);
-                  setPip((prev) => ({ ...prev, enabled: !prev.enabled }));
-                }}
-                className={`rounded-md px-3 py-1.5 ${
-                  pip.enabled
-                    ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
-                    : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-                }`}
-              >
-                Picture-in-picture
-              </button>
-            }
           />
 
-          {pip.enabled && (
-            <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+          <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <label
+                className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500"
+                title="Overlay an independent second rotation in a corner, on top of the rotation above -- its own timing, own images."
+              >
+                <input
+                  type="checkbox"
+                  checked={pip.enabled}
+                  onChange={() => {
+                    setDirty(true);
+                    setPip((prev) => ({ ...prev, enabled: !prev.enabled }));
+                  }}
+                />
+                Picture-in-picture
+              </label>
               <button
                 type="button"
                 onClick={() => setPipOpen((value) => !value)}
-                className="flex items-center justify-between text-left"
+                className="text-xs text-zinc-500"
               >
-                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  Picture-in-picture overlay
-                </span>
-                <span className="text-xs text-zinc-500">{pipOpen ? "Hide ▲" : "Show ▼"}</span>
+                {pipOpen ? "Hide ▲" : "Show ▼"}
               </button>
-              {pipOpen && (
-                <>
-                  <p className="text-[11px] text-zinc-400">
-                    Its own independent rotation, shown in a corner on top of the rotation above --
-                    configure its timing/images the same way.
-                  </p>
+            </div>
+            {pipOpen && (
+              <>
+                <p className="text-[11px] text-zinc-400">
+                  Its own independent rotation, shown in a corner on top of the rotation above --
+                  configure its timing/images the same way.
+                </p>
+                {pip.enabled ? (
                   <TimingModeEditor
                     images={images}
                     savedPlaylists={savedPlaylists}
@@ -334,10 +330,12 @@ export default function ScreenCard({
                       setPip((prev) => ({ ...prev, imageDurationOverrides: fn(prev.imageDurationOverrides) }));
                     }}
                   />
-                </>
-              )}
-            </div>
-          )}
+                ) : (
+                  <p className="text-xs text-zinc-500">Enable picture-in-picture above to configure its overlay.</p>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
             <button

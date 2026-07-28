@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   DEFAULT_DURATION_SECONDS,
   IMAGE_TYPE_LABELS,
@@ -56,7 +56,6 @@ export default function TimingModeEditor({
   onPlaylistChange,
   imageDurationOverrides,
   onImageDurationOverridesChange,
-  extraModeButton,
 }: {
   images: ImageRecord[];
   savedPlaylists: SavedPlaylist[];
@@ -74,8 +73,6 @@ export default function TimingModeEditor({
   onPlaylistChange: (updater: (prev: string[]) => string[]) => void;
   imageDurationOverrides: Record<string, number>;
   onImageDurationOverridesChange: (updater: (prev: Record<string, number>) => Record<string, number>) => void;
-  /** Rendered as a third pill between the two mode buttons -- used by ScreenCard to place the independent picture-in-picture toggle there for the main rotation only (the nested pip editor doesn't pass one). */
-  extraModeButton?: ReactNode;
 }) {
   const [activePicker, setActivePicker] = useState<ImageType | null>(null);
   const [playlistPickerOpen, setPlaylistPickerOpen] = useState(false);
@@ -184,7 +181,6 @@ export default function TimingModeEditor({
           >
             Fine-grain control
           </button>
-          {extraModeButton}
           <button
             type="button"
             onClick={() => onTimingModeChange("category")}
