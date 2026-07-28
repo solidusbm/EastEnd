@@ -2,6 +2,7 @@ import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { backupImageToGithubBestEffort } from "./githubBackup";
+import { mediaKind } from "./media";
 import type { ImageType } from "./types";
 
 // Uploaded images are written into public/uploads so Next's static file
@@ -17,9 +18,14 @@ const UPLOADS_URL_PREFIX = "/uploads/";
 // under this size pass through unchanged (withoutEnlargement).
 const MAX_DIMENSION = 2560;
 
-async function resizeForDisplay(content: Buffer): Promise<Buffer> {
+async function resizeForDisplay(content: Buffer, filename: string): Promise<Buffer> {
+  const kind = mediaKind(filename);
+  // sharp is an image library -- it can't touch video at all, so skip
+  // straight through. It never got a chance to shrink these on disk before.
+  if (kind === "video") return content;
+
   try {
-    return await sharp(content)
+    return await sharp(content, kind === "gif" ? { animated: true } : undefined)
       .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
       .toBuffer();
   } catch {
@@ -33,7 +39,7 @@ export function sanitizeFilename(name: string): string {
 }
 
 export async function saveUpload(type: ImageType, filename: string, content: Buffer): Promise<string> {
-  const resized = await resizeForDisplay(content);
+  const resized = await resizeForDisplay(content, filename);
   await mkdir(UPLOADS_DIR, { recursive: true });
   await writeFile(path.join(UPLOADS_DIR, filename), resized);
   // Best-effort, non-blocking permanent backup -- see lib/githubBackup.ts.

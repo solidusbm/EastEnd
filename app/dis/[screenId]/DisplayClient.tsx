@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { IMAGE_TYPES, type ImageRecord, type ImageType, type PipConfig, type Screen, type TimingMode } from "@/lib/types";
 import { hexToRgba, LABEL_FONT_CSS_VARS, type LabelStyle } from "@/lib/labelStyle";
+import { isVideoFile } from "@/lib/media";
 import { LABEL_FONT_VARIABLES } from "../fonts";
 
 interface DisplayOverride {
@@ -179,6 +180,18 @@ function pipStyle(pip: PipConfig): CSSProperties {
 // down -- the box itself is much smaller than the main display.
 const PIP_CAPTION_SCALE = 0.55;
 
+// A freshly-mounted <video src="..."> doesn't reliably auto-load/play on
+// its own across browsers -- kick it explicitly. Safe to call from a ref
+// callback (fires once per mount) since it's a no-op on an unmounted node.
+function loadAndPlay(el: HTMLVideoElement | null): void {
+  if (!el) return;
+  el.load();
+  el.play().catch(() => {
+    // Autoplay can be blocked in rare cases; nothing sensible to do about
+    // it on an unattended TV, so just let the frame sit still.
+  });
+}
+
 function captionStyle(labelStyle: LabelStyle, scale: number): CSSProperties {
   return {
     fontSize: `${Math.round(labelStyle.fontSize * scale)}px`,
@@ -199,6 +212,13 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   const [layers, setLayers] = useState<[string | null, string | null]>([null, null]);
   const [activeLayer, setActiveLayer] = useState<0 | 1>(0);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
+  // The two crossfade layers are persistent DOM nodes (key={layerIndex}, not
+  // key={src}) so the opacity transition has something stable to animate --
+  // but that means a <video> layer's src can change without the browser
+  // noticing on its own (unlike <img>, changing a <video> src attribute
+  // doesn't auto-(re)load/play). This ref pair drives that manually.
+  const videoLayerRefs = useRef<(HTMLVideoElement | null)[]>([null, null]);
+  const prevLayersRef = useRef<[string | null, string | null]>([null, null]);
 
   useEffect(() => {
     dataRef.current = data;
@@ -251,6 +271,18 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Whenever a crossfade layer's src actually changes to a video, kick the
+  // persistent <video> element for that layer to load and play the new
+  // source -- setting the src attribute alone doesn't do this on its own.
+  useEffect(() => {
+    layers.forEach((src, i) => {
+      if (src && src !== prevLayersRef.current[i] && isVideoFile(src)) {
+        loadAndPlay(videoLayerRefs.current[i]);
+      }
+    });
+    prevLayersRef.current = layers;
+  }, [layers]);
 
   const mainSource = data ? toMainSource(data) : null;
   const currentImage = currentImageOf(mainSource, cycle);
@@ -311,15 +343,36 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
       {[0, 1].map((layerIndex) => {
         const src = layers[layerIndex];
         if (!src) return null;
+        const layerClassName =
+          "absolute inset-0 h-full w-full object-contain transition-opacity duration-1000 ease-in-out";
+        const layerStyle = { opacity: activeLayer === layerIndex ? 1 : 0 };
+        if (isVideoFile(src)) {
+          return (
+            <video
+              key={layerIndex}
+              ref={(el) => {
+                // Deliberately NOT calling loadAndPlay here: this is an
+                // inline arrow function, so React treats it as a new ref
+                // identity on every re-render (this component re-renders
+                // every second) and would re-invoke it constantly -- calling
+                // .load() that often would restart playback in a loop and
+                // the video would never get to actually play. The effect
+                // below is keyed off actual src changes instead, not renders.
+                videoLayerRefs.current[layerIndex] = el;
+              }}
+              src={src}
+              muted
+              loop
+              playsInline
+              autoPlay
+              className={layerClassName}
+              style={layerStyle}
+            />
+          );
+        }
         return (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={layerIndex}
-            src={src}
-            alt=""
-            className="absolute inset-0 h-full w-full object-contain transition-opacity duration-1000 ease-in-out"
-            style={{ opacity: activeLayer === layerIndex ? 1 : 0 }}
-          />
+          <img key={layerIndex} src={src} alt="" className={layerClassName} style={layerStyle} />
         );
       })}
       {currentLabel && (
@@ -335,8 +388,21 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
           className="absolute overflow-hidden rounded-lg border-2 border-white/80 bg-black shadow-2xl"
           style={pipStyle(data.screen.pip)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={pipUrl} alt="" className="aspect-video w-full object-contain" />
+          {isVideoFile(pipUrl) ? (
+            <video
+              key={pipUrl}
+              ref={loadAndPlay}
+              src={pipUrl}
+              muted
+              loop
+              playsInline
+              autoPlay
+              className="aspect-video w-full object-contain"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={pipUrl} src={pipUrl} alt="" className="aspect-video w-full object-contain" />
+          )}
           {pipLabel && (
             <div
               className="absolute inset-x-0 bottom-0 px-2 py-1 text-center"
@@ -355,8 +421,20 @@ function EmergencyOverrideView({ override }: { override: DisplayOverride }) {
   if (override.imageUrl) {
     return (
       <div className="fixed inset-0 overflow-hidden bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={override.imageUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
+        {isVideoFile(override.imageUrl) ? (
+          <video
+            ref={loadAndPlay}
+            src={override.imageUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={override.imageUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
+        )}
         {override.message && (
           <div className="absolute inset-x-0 bottom-0 bg-black/80 px-8 py-6 text-center">
             <p className="text-2xl font-semibold text-white">{override.message}</p>

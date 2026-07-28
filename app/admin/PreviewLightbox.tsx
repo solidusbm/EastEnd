@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { isVideoFile } from "@/lib/media";
 import type { ImageRecord } from "@/lib/types";
 
 /**
@@ -38,12 +39,24 @@ export default function PreviewLightbox({
         onClose();
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={image.url}
-        alt={image.label || image.type}
-        className="max-h-full max-w-full object-contain"
-      />
+      {isVideoFile(image.url) ? (
+        <video
+          src={image.url}
+          controls
+          autoPlay
+          loop
+          playsInline
+          onClick={(event) => event.stopPropagation()}
+          className="max-h-full max-w-full object-contain"
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image.url}
+          alt={image.label || image.type}
+          className="max-h-full max-w-full object-contain"
+        />
+      )}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-1.5 text-sm text-white">
         {image.label || "(untitled)"} — click anywhere or press Esc to close
       </div>

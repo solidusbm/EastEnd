@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { deleteUpload, saveUpload, sanitizeFilename } from "@/lib/uploads";
+import { isAcceptedUploadMimeType, mediaKind, MAX_VIDEO_BYTES } from "@/lib/media";
 import { IMAGE_TYPES, type ImageType } from "@/lib/types";
 
 export async function PATCH(
@@ -23,8 +24,14 @@ export async function PATCH(
       if (!(file instanceof File)) {
         return NextResponse.json({ error: "Missing file." }, { status: 400 });
       }
-      if (!file.type.startsWith("image/")) {
-        return NextResponse.json({ error: "Uploaded file must be an image." }, { status: 400 });
+      if (!isAcceptedUploadMimeType(file.type)) {
+        return NextResponse.json({ error: "Uploaded file must be an image or an MP4 video." }, { status: 400 });
+      }
+      if (mediaKind(file.name) === "video" && file.size > MAX_VIDEO_BYTES) {
+        return NextResponse.json(
+          { error: `Video files must be ${MAX_VIDEO_BYTES / (1024 * 1024)}MB or smaller.` },
+          { status: 400 }
+        );
       }
 
       const previousUrl = image.url;

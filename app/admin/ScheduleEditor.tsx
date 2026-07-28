@@ -1,6 +1,7 @@
 "use client";
 
 import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageRecord, type ImageType, type ScheduleRule } from "@/lib/types";
+import { isMotionMedia, isVideoFile } from "@/lib/media";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -101,11 +102,15 @@ export default function ScheduleEditor({
                 className={inputClass}
               >
                 <option value="">Whole category</option>
-                {imageIdsByType[rule.type].map((id) => (
-                  <option key={id} value={id}>
-                    {imageById.get(id)?.label || id}
-                  </option>
-                ))}
+                {imageIdsByType[rule.type].map((id) => {
+                  const img = imageById.get(id);
+                  return (
+                    <option key={id} value={id}>
+                      {img?.label || id}
+                      {img && isMotionMedia(img.url) ? ` (${isVideoFile(img.url) ? "video" : "GIF"})` : ""}
+                    </option>
+                  );
+                })}
               </select>
               <button
                 type="button"

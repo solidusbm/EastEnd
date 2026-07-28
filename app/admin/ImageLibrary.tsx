@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
+import { UPLOAD_ACCEPT_ATTR } from "@/lib/media";
+import MediaBadge from "./MediaBadge";
+import MediaElement from "./MediaElement";
 import PreviewLightbox from "./PreviewLightbox";
 
 export default function ImageLibrary({
@@ -138,10 +141,9 @@ export default function ImageLibrary({
           className="flex flex-col overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
         >
           <div className="relative aspect-video bg-zinc-100 dark:bg-zinc-800">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image.url}
-              alt={image.label || image.type}
+            <MediaElement
+              url={image.url}
+              label={image.label || image.type}
               onClick={() => setPreviewImage(image)}
               className="h-full w-full cursor-pointer object-cover"
             />
@@ -150,6 +152,7 @@ export default function ImageLibrary({
                 Canva
               </span>
             )}
+            <MediaBadge url={image.url} className="bottom-1.5 left-1.5" />
             <button
               type="button"
               onClick={() => fileInputRefs.current[image.id]?.click()}
@@ -163,7 +166,7 @@ export default function ImageLibrary({
                 fileInputRefs.current[image.id] = el;
               }}
               type="file"
-              accept="image/*"
+              accept={UPLOAD_ACCEPT_ATTR}
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];

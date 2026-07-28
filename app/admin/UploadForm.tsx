@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageType } from "@/lib/types";
+import { UPLOAD_ACCEPT_ATTR } from "@/lib/media";
 
 type Mode = "file" | "canva";
 
@@ -103,11 +104,13 @@ export default function UploadForm({ onUploaded }: { onUploaded: () => void }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
         {mode === "file" ? (
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Image</label>
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Image / GIF / video (MP4, ≤50MB)
+            </label>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={UPLOAD_ACCEPT_ATTR}
               className="text-sm text-zinc-600 dark:text-zinc-400 file:mr-3 file:appearance-none file:rounded-md file:border-0 file:bg-zinc-900 dark:file:bg-zinc-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white dark:file:text-zinc-900 file:cursor-pointer hover:file:opacity-90"
             />
           </div>

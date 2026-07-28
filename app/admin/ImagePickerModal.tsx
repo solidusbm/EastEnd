@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { IMAGE_TYPE_LABELS, type ImageRecord } from "@/lib/types";
+import MediaBadge from "./MediaBadge";
+import MediaElement from "./MediaElement";
 import PreviewLightbox from "./PreviewLightbox";
 
 export default function ImagePickerModal({
@@ -103,13 +105,14 @@ export default function ImagePickerModal({
                         ▼
                       </button>
                     </div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={image.url}
-                      alt=""
-                      onClick={() => setPreviewImage(image)}
-                      className="h-10 w-16 flex-none cursor-pointer rounded object-cover"
-                    />
+                    <div className="relative h-10 w-16 flex-none">
+                      <MediaElement
+                        url={image.url}
+                        onClick={() => setPreviewImage(image)}
+                        className="h-10 w-16 cursor-pointer rounded object-cover"
+                      />
+                      <MediaBadge url={image.url} className="bottom-0 right-0 px-1 py-0 text-[7px]" />
+                    </div>
                     <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">
                       {image.label || image.id}
                       {showTypeLabels && (
@@ -181,10 +184,9 @@ export default function ImagePickerModal({
                     }`}
                   >
                     <div className="relative aspect-video bg-zinc-100 dark:bg-zinc-800">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image.url}
-                        alt={image.label || image.type}
+                      <MediaElement
+                        url={image.url}
+                        label={image.label || image.type}
                         className="h-full w-full object-cover"
                       />
                       {selected && (
@@ -192,6 +194,7 @@ export default function ImagePickerModal({
                           ✓
                         </span>
                       )}
+                      <MediaBadge url={image.url} className="bottom-1.5 right-1.5" />
                       {onToggleOnly && (
                         <label
                           className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isMotionMedia, isVideoFile } from "@/lib/media";
 import type { ImageRecord } from "@/lib/types";
 
 interface EmergencyOverride {
@@ -120,6 +121,7 @@ export default function EmergencyOverrideBanner({ images }: { images: ImageRecor
           {images.map((img) => (
             <option key={img.id} value={img.id}>
               {img.label || img.type}
+              {isMotionMedia(img.url) ? ` (${isVideoFile(img.url) ? "video" : "GIF"})` : ""}
             </option>
           ))}
         </select>
