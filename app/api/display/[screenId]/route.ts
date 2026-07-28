@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { readStore, withStoreLock, writeStore } from "@/lib/store";
 import { getActiveScheduleRule } from "@/lib/schedule";
+import { normalizeLabelStyle } from "@/lib/labelStyle";
+import { readSettings } from "@/lib/settings";
 import { IMAGE_TYPES, type ImageRecord, type ImageType } from "@/lib/types";
 
 // Rounding to the minute means at most one config.json write per screen per
@@ -86,6 +88,8 @@ export async function GET(
       }
     : null;
 
+  const labelStyle = normalizeLabelStyle(await readSettings());
+
   return NextResponse.json(
     {
       screen: { ...screen, durationSecondsByType },
@@ -93,6 +97,7 @@ export async function GET(
       playlistImages,
       pipImagesByType,
       pipPlaylistImages,
+      labelStyle,
       // A schedule rule is a temporary single-category takeover regardless
       // of timingMode -- the display client uses this to fall back to
       // category-cycle rendering even on a fine-grain screen while active.

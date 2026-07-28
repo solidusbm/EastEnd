@@ -19,6 +19,18 @@ export interface AppSettings {
   canvaRedirectUri?: string;
   /** Port the server should listen on, applied on next restart. Defaults to 3000 if unset. */
   serverPort?: string;
+  /**
+   * How image labels are displayed as captions on the TV displays (both the
+   * main rotation and the picture-in-picture overlay) -- one global style
+   * used everywhere, not per-image/per-screen. See lib/labelStyle.ts for
+   * defaults and normalization; all stored as strings for consistency with
+   * the rest of this settings file.
+   */
+  labelFontSize?: string;
+  labelFontFamily?: string;
+  labelTextColor?: string;
+  labelBackgroundColor?: string;
+  labelBackgroundOpacity?: string;
 }
 
 export async function readSettings(): Promise<AppSettings> {

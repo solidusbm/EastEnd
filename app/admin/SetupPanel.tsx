@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { IMAGE_TYPE_LABELS, IMAGE_TYPES, type ImageType } from "@/lib/types";
+import {
+  DEFAULT_LABEL_STYLE,
+  LABEL_FONT_CSS_VARS,
+  LABEL_FONT_FAMILIES,
+  LABEL_FONT_FAMILY_LABELS,
+  hexToRgba,
+  type LabelFontFamily,
+} from "@/lib/labelStyle";
+import { LABEL_FONT_VARIABLES } from "../dis/fonts";
 
 interface Settings {
   githubBackupToken?: string;
@@ -10,6 +19,11 @@ interface Settings {
   canvaClientId?: string;
   canvaClientSecret?: string;
   canvaRedirectUri?: string;
+  labelFontSize?: string;
+  labelFontFamily?: string;
+  labelTextColor?: string;
+  labelBackgroundColor?: string;
+  labelBackgroundOpacity?: string;
 }
 
 interface CanvaStatus {
@@ -111,6 +125,14 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
   const [portSaving, setPortSaving] = useState(false);
   const [portMessage, setPortMessage] = useState<Message>(null);
 
+  const [labelFontSize, setLabelFontSize] = useState(String(DEFAULT_LABEL_STYLE.fontSize));
+  const [labelFontFamily, setLabelFontFamily] = useState<LabelFontFamily>(DEFAULT_LABEL_STYLE.fontFamily);
+  const [labelTextColor, setLabelTextColor] = useState(DEFAULT_LABEL_STYLE.textColor);
+  const [labelBackgroundColor, setLabelBackgroundColor] = useState(DEFAULT_LABEL_STYLE.backgroundColor);
+  const [labelBackgroundOpacity, setLabelBackgroundOpacity] = useState(DEFAULT_LABEL_STYLE.backgroundOpacity);
+  const [labelStyleSaving, setLabelStyleSaving] = useState(false);
+  const [labelStyleMessage, setLabelStyleMessage] = useState<Message>(null);
+
   async function fetchSettings(): Promise<Settings | null> {
     const res = await fetch("/api/admin/settings", { cache: "no-store" });
     return res.ok ? ((await res.json()).settings as Settings) : null;
@@ -140,6 +162,19 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
       setCanvaClientSecret(settings.canvaClientSecret ?? "");
       setCanvaRedirectUri(
         settings.canvaRedirectUri || `${window.location.origin}/api/admin/canva/callback`
+      );
+      setLabelFontSize(settings.labelFontSize ?? String(DEFAULT_LABEL_STYLE.fontSize));
+      setLabelFontFamily(
+        LABEL_FONT_FAMILIES.includes(settings.labelFontFamily as LabelFontFamily)
+          ? (settings.labelFontFamily as LabelFontFamily)
+          : DEFAULT_LABEL_STYLE.fontFamily
+      );
+      setLabelTextColor(settings.labelTextColor ?? DEFAULT_LABEL_STYLE.textColor);
+      setLabelBackgroundColor(settings.labelBackgroundColor ?? DEFAULT_LABEL_STYLE.backgroundColor);
+      setLabelBackgroundOpacity(
+        settings.labelBackgroundOpacity !== undefined
+          ? Number(settings.labelBackgroundOpacity)
+          : DEFAULT_LABEL_STYLE.backgroundOpacity
       );
     });
     fetchCanvaStatus().then((data) => {
@@ -400,6 +435,32 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
       if (status) setCanvaStatus(status);
     } finally {
       setCanvaSaving(false);
+    }
+  }
+
+  async function saveLabelStyle() {
+    setLabelStyleSaving(true);
+    setLabelStyleMessage(null);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          labelFontSize,
+          labelFontFamily,
+          labelTextColor,
+          labelBackgroundColor,
+          labelBackgroundOpacity,
+        }),
+      });
+      const data = await res.json();
+      setLabelStyleMessage(
+        res.ok ? { text: "Saved.", tone: "success" } : { text: data.error ?? "Could not save.", tone: "error" }
+      );
+    } catch {
+      setLabelStyleMessage({ text: "Network error. Please try again.", tone: "error" });
+    } finally {
+      setLabelStyleSaving(false);
     }
   }
 
@@ -691,6 +752,105 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
             })()}
           </div>
         )}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Image label style</h3>
+          <p className="text-sm text-zinc-500">
+            One global style for every caption shown on the displays -- from each image&apos;s
+            &quot;show label&quot; checkbox, in both the main rotation and picture-in-picture. Font
+            choices are matched to the fonts already used across your uploaded menus.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Font size (px)
+            <input
+              type="number"
+              min={8}
+              max={200}
+              value={labelFontSize}
+              onChange={(e) => setLabelFontSize(e.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Font
+            <select
+              value={labelFontFamily}
+              onChange={(e) => setLabelFontFamily(e.target.value as LabelFontFamily)}
+              className={inputClass}
+            >
+              {LABEL_FONT_FAMILIES.map((f) => (
+                <option key={f} value={f}>
+                  {LABEL_FONT_FAMILY_LABELS[f]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Text color
+            <input
+              type="color"
+              value={labelTextColor}
+              onChange={(e) => setLabelTextColor(e.target.value)}
+              className="h-9 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white px-1"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Background color
+            <input
+              type="color"
+              value={labelBackgroundColor}
+              onChange={(e) => setLabelBackgroundColor(e.target.value)}
+              className="h-9 w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white px-1"
+            />
+          </label>
+        </div>
+
+        <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Background opacity ({labelBackgroundOpacity}%)
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={labelBackgroundOpacity}
+            onChange={(e) => setLabelBackgroundOpacity(Number(e.target.value))}
+          />
+        </label>
+
+        <div>
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">Preview</p>
+          <div
+            className={`relative h-32 overflow-hidden rounded-lg bg-zinc-700 ${LABEL_FONT_VARIABLES}`}
+          >
+            <div
+              className="absolute inset-x-0 bottom-0 px-6 py-3 text-center"
+              style={{
+                fontSize: `${labelFontSize}px`,
+                color: labelTextColor,
+                backgroundColor: hexToRgba(labelBackgroundColor, labelBackgroundOpacity),
+                fontFamily: LABEL_FONT_CSS_VARS[labelFontFamily],
+              }}
+            >
+              <p className="font-medium">Sweet Heat</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={saveLabelStyle}
+            disabled={labelStyleSaving}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+          >
+            {labelStyleSaving ? "Saving…" : "Save"}
+          </button>
+          <MessageText message={labelStyleMessage} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">

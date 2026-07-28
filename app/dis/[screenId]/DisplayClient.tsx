@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { IMAGE_TYPES, type ImageRecord, type ImageType, type PipConfig, type Screen, type TimingMode } from "@/lib/types";
+import { hexToRgba, LABEL_FONT_CSS_VARS, type LabelStyle } from "@/lib/labelStyle";
+import { LABEL_FONT_VARIABLES } from "../fonts";
 
 interface DisplayOverride {
   active: true;
@@ -15,6 +17,7 @@ interface DisplayData {
   playlistImages: ImageRecord[];
   pipImagesByType: Record<ImageType, ImageRecord[]>;
   pipPlaylistImages: ImageRecord[];
+  labelStyle: LabelStyle;
   scheduleActive: boolean;
   emergencyOverride: DisplayOverride | null;
 }
@@ -172,6 +175,19 @@ function pipStyle(pip: PipConfig): CSSProperties {
   return style;
 }
 
+// The pip overlay's caption uses the same configured style, just scaled
+// down -- the box itself is much smaller than the main display.
+const PIP_CAPTION_SCALE = 0.55;
+
+function captionStyle(labelStyle: LabelStyle, scale: number): CSSProperties {
+  return {
+    fontSize: `${Math.round(labelStyle.fontSize * scale)}px`,
+    color: labelStyle.textColor,
+    backgroundColor: hexToRgba(labelStyle.backgroundColor, labelStyle.backgroundOpacity),
+    fontFamily: LABEL_FONT_CSS_VARS[labelStyle.fontFamily],
+  };
+}
+
 export default function DisplayClient({ screenId }: { screenId: string }) {
   const [data, setData] = useState<DisplayData | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -291,7 +307,7 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black">
+    <div className={`fixed inset-0 overflow-hidden bg-black ${LABEL_FONT_VARIABLES}`}>
       {[0, 1].map((layerIndex) => {
         const src = layers[layerIndex];
         if (!src) return null;
@@ -307,8 +323,11 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
         );
       })}
       {currentLabel && (
-        <div className="absolute inset-x-0 bottom-0 bg-black/70 px-6 py-3 text-center">
-          <p className="text-lg font-medium text-white">{currentLabel}</p>
+        <div
+          className="absolute inset-x-0 bottom-0 px-6 py-3 text-center"
+          style={captionStyle(data.labelStyle, 1)}
+        >
+          <p className="font-medium">{currentLabel}</p>
         </div>
       )}
       {pipUrl && (
@@ -319,8 +338,11 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pipUrl} alt="" className="aspect-video w-full object-contain" />
           {pipLabel && (
-            <div className="absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-center">
-              <p className="truncate text-xs font-medium text-white">{pipLabel}</p>
+            <div
+              className="absolute inset-x-0 bottom-0 px-2 py-1 text-center"
+              style={captionStyle(data.labelStyle, PIP_CAPTION_SCALE)}
+            >
+              <p className="truncate font-medium">{pipLabel}</p>
             </div>
           )}
         </div>
