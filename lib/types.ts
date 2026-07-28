@@ -62,6 +62,33 @@ export interface ScheduleRule {
  */
 export type TimingMode = "category" | "fineGrain";
 
+/** "percent": sizeValue is a percentage of the screen's width. "pixels": sizeValue is a fixed pixel width. */
+export type PipSizeUnit = "percent" | "pixels";
+
+export type PipPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+export const PIP_SIZE_UNITS: PipSizeUnit[] = ["percent", "pixels"];
+export const PIP_SIZE_UNIT_LABELS: Record<PipSizeUnit, string> = {
+  percent: "% of screen width",
+  pixels: "px (fixed width)",
+};
+
+export const PIP_POSITIONS: PipPosition[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
+export const PIP_POSITION_LABELS: Record<PipPosition, string> = {
+  "top-left": "Top left",
+  "top-right": "Top right",
+  "bottom-left": "Bottom left",
+  "bottom-right": "Bottom right",
+};
+
+/** "corner": snap to one of the four PipPosition presets. "custom": place freely via offsetX/offsetY from the top-left. */
+export type PipPlacementMode = "corner" | "custom";
+
+export const PIP_OFFSET_UNIT_LABELS: Record<PipSizeUnit, string> = {
+  percent: "%",
+  pixels: "px",
+};
+
 /**
  * Picture-in-picture: an independent second rotation, overlaid in a corner
  * on top of the screen's normal rotation. Mirrors the main rotation's own
@@ -77,6 +104,19 @@ export interface PipConfig {
   perImageDurationSeconds: number;
   imageDurationOverrides: Record<string, number>;
   playlist: string[];
+  /** Overlay width, interpreted per sizeUnit -- height follows automatically (16:9). */
+  sizeUnit: PipSizeUnit;
+  sizeValue: number;
+  /** "corner" uses `position` below; "custom" uses offsetX/offsetY instead. */
+  placementMode: PipPlacementMode;
+  /** Which corner of the display the overlay is anchored to (placementMode "corner" only). */
+  position: PipPosition;
+  /** Distance from the left edge, interpreted per offsetXUnit (placementMode "custom" only). */
+  offsetXUnit: PipSizeUnit;
+  offsetXValue: number;
+  /** Distance from the top edge, interpreted per offsetYUnit (placementMode "custom" only). */
+  offsetYUnit: PipSizeUnit;
+  offsetYValue: number;
 }
 
 export interface Screen {
@@ -171,6 +211,14 @@ export function defaultPipConfig(): PipConfig {
     perImageDurationSeconds: 10,
     imageDurationOverrides: {},
     playlist: [],
+    sizeUnit: "percent",
+    sizeValue: 25,
+    placementMode: "corner",
+    position: "top-right",
+    offsetXUnit: "percent",
+    offsetXValue: 4,
+    offsetYUnit: "percent",
+    offsetYValue: 4,
   };
 }
 
@@ -286,6 +334,17 @@ export function normalizePipConfig(input: unknown): PipConfig {
   const fallback = defaultPipConfig();
   const num =
     typeof source.perImageDurationSeconds === "number" ? source.perImageDurationSeconds : Number(source.perImageDurationSeconds);
+  const sizeNum = typeof source.sizeValue === "number" ? source.sizeValue : Number(source.sizeValue);
+
+  function unit(value: unknown, fallbackUnit: PipSizeUnit): PipSizeUnit {
+    return PIP_SIZE_UNITS.includes(value as PipSizeUnit) ? (value as PipSizeUnit) : fallbackUnit;
+  }
+  // Offsets may legitimately be 0 (flush against an edge), unlike sizeValue/perImageDurationSeconds.
+  function offset(value: unknown, fallbackValue: number): number {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : fallbackValue;
+  }
+
   return {
     enabled: source.enabled === true,
     timingMode: normalizeTimingMode(source.timingMode),
@@ -294,5 +353,13 @@ export function normalizePipConfig(input: unknown): PipConfig {
     perImageDurationSeconds: Number.isFinite(num) && num > 0 ? Math.round(num) : fallback.perImageDurationSeconds,
     imageDurationOverrides: normalizeImageDurationOverrides(source.imageDurationOverrides),
     playlist: normalizePlaylist(source.playlist),
+    sizeUnit: unit(source.sizeUnit, fallback.sizeUnit),
+    sizeValue: Number.isFinite(sizeNum) && sizeNum > 0 ? Math.round(sizeNum) : fallback.sizeValue,
+    placementMode: source.placementMode === "custom" ? "custom" : "corner",
+    position: PIP_POSITIONS.includes(source.position as PipPosition) ? (source.position as PipPosition) : fallback.position,
+    offsetXUnit: unit(source.offsetXUnit, fallback.offsetXUnit),
+    offsetXValue: offset(source.offsetXValue, fallback.offsetXValue),
+    offsetYUnit: unit(source.offsetYUnit, fallback.offsetYUnit),
+    offsetYValue: offset(source.offsetYValue, fallback.offsetYValue),
   };
 }

@@ -4,9 +4,16 @@ import { useState } from "react";
 import {
   IMAGE_TYPE_LABELS,
   IMAGE_TYPES,
+  PIP_OFFSET_UNIT_LABELS,
+  PIP_POSITIONS,
+  PIP_POSITION_LABELS,
+  PIP_SIZE_UNITS,
+  PIP_SIZE_UNIT_LABELS,
   type ImageRecord,
   type ImageType,
   type PipConfig,
+  type PipPosition,
+  type PipSizeUnit,
   type SavedPlaylist,
   type Screen,
   type TimingMode,
@@ -293,6 +300,151 @@ export default function ScreenCard({
                   Its own independent rotation, shown in a corner on top of the rotation above --
                   configure its timing/images the same way.
                 </p>
+                {pip.enabled && (
+                  <div className="flex flex-col gap-3 rounded-md border border-zinc-200 dark:border-zinc-800 p-2">
+                    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Size
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          value={pip.sizeValue}
+                          onChange={(e) => {
+                            setDirty(true);
+                            setPip((prev) => ({ ...prev, sizeValue: Number(e.target.value) }));
+                          }}
+                          className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                        />
+                        <select
+                          value={pip.sizeUnit}
+                          onChange={(e) => {
+                            setDirty(true);
+                            setPip((prev) => ({ ...prev, sizeUnit: e.target.value as PipSizeUnit }));
+                          }}
+                          className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+                        >
+                          {PIP_SIZE_UNITS.map((u) => (
+                            <option key={u} value={u}>
+                              {PIP_SIZE_UNIT_LABELS[u]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </label>
+
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Position</p>
+                      <div className="flex w-fit items-center gap-1 rounded-lg border border-zinc-300 dark:border-zinc-700 p-1 text-xs font-medium">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDirty(true);
+                            setPip((prev) => ({ ...prev, placementMode: "corner" }));
+                          }}
+                          className={`rounded-md px-3 py-1.5 ${
+                            pip.placementMode === "corner"
+                              ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                              : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                          }`}
+                        >
+                          Corner
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDirty(true);
+                            setPip((prev) => ({ ...prev, placementMode: "custom" }));
+                          }}
+                          className={`rounded-md px-3 py-1.5 ${
+                            pip.placementMode === "custom"
+                              ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                              : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                          }`}
+                        >
+                          Custom
+                        </button>
+                      </div>
+
+                      {pip.placementMode === "corner" ? (
+                        <select
+                          value={pip.position}
+                          onChange={(e) => {
+                            setDirty(true);
+                            setPip((prev) => ({ ...prev, position: e.target.value as PipPosition }));
+                          }}
+                          className="w-fit rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+                        >
+                          {PIP_POSITIONS.map((p) => (
+                            <option key={p} value={p}>
+                              {PIP_POSITION_LABELS[p]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex flex-wrap items-end gap-3">
+                          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                            From left
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={pip.offsetXValue}
+                                onChange={(e) => {
+                                  setDirty(true);
+                                  setPip((prev) => ({ ...prev, offsetXValue: Number(e.target.value) }));
+                                }}
+                                className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                              />
+                              <select
+                                value={pip.offsetXUnit}
+                                onChange={(e) => {
+                                  setDirty(true);
+                                  setPip((prev) => ({ ...prev, offsetXUnit: e.target.value as PipSizeUnit }));
+                                }}
+                                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+                              >
+                                {PIP_SIZE_UNITS.map((u) => (
+                                  <option key={u} value={u}>
+                                    {PIP_OFFSET_UNIT_LABELS[u]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                            From top
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={pip.offsetYValue}
+                                onChange={(e) => {
+                                  setDirty(true);
+                                  setPip((prev) => ({ ...prev, offsetYValue: Number(e.target.value) }));
+                                }}
+                                className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm outline-none focus:border-zinc-500"
+                              />
+                              <select
+                                value={pip.offsetYUnit}
+                                onChange={(e) => {
+                                  setDirty(true);
+                                  setPip((prev) => ({ ...prev, offsetYUnit: e.target.value as PipSizeUnit }));
+                                }}
+                                className="rounded-md border border-zinc-300 dark:border-zinc-700 bg-white text-zinc-900 px-2 py-1 text-xs outline-none focus:border-zinc-500"
+                              >
+                                {PIP_SIZE_UNITS.map((u) => (
+                                  <option key={u} value={u}>
+                                    {PIP_OFFSET_UNIT_LABELS[u]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {pip.enabled ? (
                   <TimingModeEditor
                     images={images}

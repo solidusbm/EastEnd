@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { IMAGE_TYPES, type ImageRecord, type ImageType, type Screen, type TimingMode } from "@/lib/types";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { IMAGE_TYPES, type ImageRecord, type ImageType, type PipConfig, type Screen, type TimingMode } from "@/lib/types";
 
 interface DisplayOverride {
   active: true;
@@ -152,6 +152,26 @@ function currentImageOf(source: RotationSource | null, cycle: CycleState): Image
   return images[cycle.index % images.length] ?? null;
 }
 
+// A small fixed inset off the screen edge for the four corner presets --
+// "custom" placement uses pip.offsetX/offsetY instead, anchored top-left.
+const PIP_CORNER_INSET = "1rem";
+
+function pipStyle(pip: PipConfig): CSSProperties {
+  const style: CSSProperties = {
+    width: pip.sizeUnit === "pixels" ? `${pip.sizeValue}px` : `${pip.sizeValue}%`,
+  };
+  if (pip.placementMode === "custom") {
+    style.left = pip.offsetXUnit === "pixels" ? `${pip.offsetXValue}px` : `${pip.offsetXValue}%`;
+    style.top = pip.offsetYUnit === "pixels" ? `${pip.offsetYValue}px` : `${pip.offsetYValue}%`;
+  } else {
+    if (pip.position.startsWith("top")) style.top = PIP_CORNER_INSET;
+    else style.bottom = PIP_CORNER_INSET;
+    if (pip.position.endsWith("left")) style.left = PIP_CORNER_INSET;
+    else style.right = PIP_CORNER_INSET;
+  }
+  return style;
+}
+
 export default function DisplayClient({ screenId }: { screenId: string }) {
   const [data, setData] = useState<DisplayData | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -291,7 +311,10 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
         </div>
       )}
       {pipUrl && (
-        <div className="absolute right-4 top-4 w-1/4 min-w-[120px] max-w-[320px] overflow-hidden rounded-lg border-2 border-white/80 bg-black shadow-2xl">
+        <div
+          className="absolute overflow-hidden rounded-lg border-2 border-white/80 bg-black shadow-2xl"
+          style={pipStyle(data.screen.pip)}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={pipUrl} alt="" className="aspect-video w-full object-contain" />
         </div>
