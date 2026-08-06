@@ -5,11 +5,11 @@ import { defaultPipConfig, type ImageRecord, type ImageType, type Screen } from 
 const POLL_INTERVAL_MS = 2 * 60 * 1000;
 const INITIAL_DELAY_MS = 10_000;
 
-// The hosted admin panel (Render) this app pulls screens/images from --
-// screens and images are managed there (see east-end-pizza-hosted's
-// "Signage" admin tab), but the TVs still load from this local app, so this
-// poller mirrors that remote state into the local store + local image files.
-const REMOTE_BASE = process.env.SIGNAGE_SYNC_URL || "https://east-end-pizza-hosted.onrender.com";
+// The hosted admin/reservations app this pulls screens/images from --
+// screens and images are managed there (see the `eepc` repo's "Signage"
+// admin tab), but the TVs still load from this app, so this poller mirrors
+// that remote state into this app's own store + local image files.
+const REMOTE_BASE = process.env.SIGNAGE_SYNC_URL || "https://eastend.sastx.net";
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 

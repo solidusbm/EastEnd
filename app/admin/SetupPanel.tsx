@@ -507,11 +507,12 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
               ))
             ) : (
               <li className="text-zinc-500">
-                No network address detected yet — this PC may not be connected to a LAN.
+                No local network address detected — expected if this server isn&apos;t on a local
+                network (e.g. a hosted/remote deployment reached over the internet instead).
               </li>
             )}
             <li className="text-zinc-400">
-              http://localhost:{serverInfo.currentPort} — from this PC only
+              http://localhost:{serverInfo.currentPort} — from this machine only
             </li>
           </ul>
         ) : (
@@ -532,7 +533,7 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
           </label>
           <p className="text-[11px] font-normal normal-case text-zinc-400">
             Currently running on {serverInfo?.currentPort ?? "…"}. Change this only if that port
-            conflicts with something else on the PC — saving here doesn&apos;t apply it
+            conflicts with something else on this machine — saving here doesn&apos;t apply it
             immediately, the server needs a restart to pick it up.
           </p>
         </div>
@@ -918,7 +919,7 @@ export default function SetupPanel({ onImported, onPlaylistsImported }: SetupPan
               integration. Pre-filled from the address you&apos;re viewing this page at right now
               {currentHost && ` (${currentHost})`} — if that&apos;s not the address you&apos;ll
               actually use to reach /admin day-to-day (e.g. this looks like a dev/test URL rather
-              than the restaurant PC&apos;s real one), edit it before saving.
+              than the one you&apos;ll actually use), edit it before saving.
             </span>
           </label>
         </div>

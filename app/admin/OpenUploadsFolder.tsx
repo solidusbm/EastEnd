@@ -19,8 +19,15 @@ export default function OpenUploadsFolder() {
     setOpening(true);
     setMessage(null);
     try {
-      await fetch("/api/admin/uploads-folder", { method: "POST" });
-      setMessage("Opened on the server PC's desktop (only visible there).");
+      const res = await fetch("/api/admin/uploads-folder", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        setMessage("Opened on the server's desktop (only visible there).");
+      } else if (data?.unavailable) {
+        setMessage("Not available here — this only works on a local Windows install, not a hosted deployment. The folder path is shown above.");
+      } else {
+        setMessage("Could not open the folder.");
+      }
     } catch {
       setMessage("Could not open the folder.");
     } finally {

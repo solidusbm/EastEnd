@@ -12,11 +12,14 @@ automatically.
 ## How it works
 
 - **Storage**: images live in `public/uploads/` and the small JSON config
-  (screens + image metadata) lives in `data/config.json`, both on local disk
-  — no cloud dependency, no database. This is enough at this scale (one
-  location, a handful of screens) and means the app runs fully offline.
-  Neither directory is committed to git (see `.gitignore`); back them up
-  directly on whatever machine hosts the app.
+  (screens + image metadata) lives in `data/config.json`, both on disk on
+  whatever machine hosts the app — no cloud dependency, no database. This is
+  enough at this scale (one location, a handful of screens). A local PC
+  install runs fully offline; a hosted install (any host that gives the app a
+  persistent, writable filesystem — e.g. a container with a mounted volume)
+  needs that host reachable, same as any other web app. Neither directory is
+  committed to git (see `.gitignore`); back them up directly on whatever
+  machine hosts the app.
 - **Auth**: `/admin` and the `/api/admin/*` mutation routes are protected by a
   single shared password via an HMAC-signed cookie set in `proxy.ts`. There
   are no user accounts. The password is either the `ADMIN_PASSWORD` env var
@@ -51,12 +54,15 @@ automatically.
   persisted to `data/settings.json`, no `.env.local` editing or restart
   needed. Env vars still work as a fallback for anything left unset there.
   It also has an "Open uploads folder" button next to the image library that
-  launches Explorer at `public/uploads` on whichever PC is running the
-  server (only useful when `/admin` is opened on that same PC). Its
-  **Server address** box lists the URL(s) — LAN IP plus port — that TVs and
-  other devices use to reach the app, and lets you change the port (saved to
-  `data/settings.json`'s `serverPort`; takes effect on the server's next
-  restart, unlike the other Setup fields — see `deploy/run-server.js`).
+  launches Explorer at `public/uploads` on whichever machine is running the
+  server — only works for a local Windows install opened on that same PC; a
+  no-op with an explanatory message on a hosted deployment. Its **Server
+  address** box lists the URL(s) — LAN IP plus port — that TVs and other
+  devices on the same local network use to reach the app (not applicable to
+  a hosted deployment, which TVs instead reach at its public URL), and lets
+  you change the port (saved to `data/settings.json`'s `serverPort`; takes
+  effect on the server's next restart, unlike the other Setup fields — see
+  `deploy/run-server.js`).
 
 ## Environment variables
 
@@ -101,8 +107,9 @@ reference or for setting it via `.env.local` instead.
 3. In the integration's settings, add a redirect URL that exactly matches
    the one you'll use as `CANVA_REDIRECT_URI` (or the "Redirect URI" field in
    Setup) — for local dev, `http://localhost:3000/api/admin/canva/callback`;
-   for the restaurant PC, swap in whatever URL staff actually use to reach
-   `/admin` (its LAN IP, or `localhost` if only used on that PC).
+   for a deployed install, swap in whatever URL is actually used to reach
+   `/admin` day to day (a LAN IP for a local PC install, or the public URL
+   for a hosted one).
 4. Either paste the Client ID/Secret/Redirect URI into the Setup section in
    `/admin` and click Save, or set `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`,
    and `CANVA_REDIRECT_URI` in `.env.local` and restart the app.
@@ -124,20 +131,28 @@ the `.env.local` equivalent.
    the app. Backups land in a branch named `image-backups` by default
    (override with `GITHUB_BACKUP_BRANCH`), created automatically on first use.
 
-## Deploying to a restaurant PC
+## Deploying
 
-Since storage is local disk rather than a cloud service, this app is meant
-to run on a dedicated PC on-site (not on Vercel/serverless hosting, which
-has a read-only, ephemeral filesystem). Copy the project onto the PC and
-double-click `deploy/setup.bat` — it installs Node if needed, builds for
-production, registers an auto-starting/auto-restarting Windows Service, and
-opens the firewall for the TVs. See [`deploy/README.md`](deploy/README.md)
-for the full walkthrough (including doing each step manually).
+Since storage is local disk rather than a cloud service, this app needs a
+host with a persistent, writable filesystem — that rules out purely
+stateless/serverless hosting (Vercel and similar, which have a read-only,
+ephemeral filesystem), but any of the following work:
 
-On the TV itself: set the display URL as the browser's home page / bookmark
-and disable sleep/screensaver in the TV's settings. Older WebOS/Tizen browsers
-have limited CSS/JS support, so test on the actual TV early rather than
-assuming desktop Chrome behavior carries over.
+- **A dedicated PC on-site.** Copy the project onto the PC and double-click
+  `deploy/setup.bat` — it installs Node if needed, builds for production,
+  registers an auto-starting/auto-restarting Windows Service, and opens the
+  firewall for the TVs. See [`deploy/README.md`](deploy/README.md) for the
+  full walkthrough (including doing each step manually), and for how to find
+  the local access URL the TVs should use.
+- **A hosted container with a persistent volume** — e.g. a Docker deployment
+  (Coolify, Railway, a plain VPS, etc.) with `data/` and `public/uploads/`
+  mounted as volumes so they survive redeploys. TVs then just point at
+  whatever public URL that host serves.
+
+Either way, on the TV itself: set the display URL as the browser's home page
+/ bookmark and disable sleep/screensaver in the TV's settings. Older
+WebOS/Tizen browsers have limited CSS/JS support, so test on the actual TV
+early rather than assuming desktop Chrome behavior carries over.
 
 ## Data model
 
@@ -192,5 +207,5 @@ migration needed.
 - `lib/auth.ts` / `proxy.ts` — password hashing/verification, session
   cookies, and route protection (including the redirect-to-setup logic when
   no account exists yet).
-- `deploy/` — Windows Service install/uninstall scripts and the restaurant
-  PC setup guide.
+- `deploy/` — Windows Service install/uninstall scripts and the local PC
+  setup guide (one deployment option among others — see "Deploying" above).

@@ -1,10 +1,13 @@
-# Deploying to the restaurant's Windows PC
+# Local PC install (Windows)
 
-This app now stores everything (config + uploaded images) on local disk
-(`data/config.json` and `public/uploads/`), so it runs fully offline — no
+This is one way to deploy the app — a dedicated on-site PC, no hosting
+account needed. (For a hosted deployment instead, see the "Deploying"
+section in the main [README](../README.md#deploying).) The app stores
+everything (config + uploaded images) on local disk (`data/config.json` and
+`public/uploads/`), so a local install like this runs fully offline — no
 Vercel account or internet connection needed once it's set up. These steps
 turn a Windows PC into a dedicated, always-on signage server that TVs on the
-restaurant's network point their browsers at.
+same local network point their browsers at.
 
 ## Quick setup (recommended)
 

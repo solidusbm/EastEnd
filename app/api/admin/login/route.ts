@@ -26,9 +26,12 @@ export async function POST(request: Request) {
   if (token) {
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
-      // Not tied to NODE_ENV: this app is served over plain HTTP on the LAN
-      // by design (see README), and a Secure cookie is silently dropped by
-      // the browser on any non-HTTPS origin other than localhost.
+      // Not tied to NODE_ENV: a local install is typically reached over
+      // plain HTTP (LAN IP, no TLS), and a Secure cookie is silently
+      // dropped by the browser on any non-HTTPS origin other than
+      // localhost. A hosted deployment behind a TLS-terminating proxy
+      // (e.g. Cloudflare Tunnel) still reaches this app over plain HTTP
+      // internally, so the same reasoning applies there too.
       secure: false,
       sameSite: "lax",
       path: "/",
