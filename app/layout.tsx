@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EastEnd TV Signage",
+  title: "lookatDis",
   description: "Menu board and food photo signage for restaurant TVs",
 };
 
