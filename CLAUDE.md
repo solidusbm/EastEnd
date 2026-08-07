@@ -13,8 +13,9 @@ filesystem — no serverless/Vercel. Two supported deployment shapes, not one:
   public URL instead of a LAN IP.
 
 Neither shape is "the real one" — don't write new code or docs that assume only one. Local:
-`C:\Users\solid\EastEnd`. Repo: `solidusbm/EastEnd`, actively worked on branch
-`claude/restaurant-tv-signage-app-w8rtr4` (not main).
+`C:\Users\solid\EastEnd` (directory name unchanged; the app itself is branded **lookatDis**).
+Repo: `solidusbm/lookatDis` (renamed 2026-08-07, was `solidusbm/EastEnd`; GitHub redirects the
+old URL), actively worked on branch `claude/restaurant-tv-signage-app-w8rtr4` (not main).
 
 **SEPARATE codebase** from the East End Pizza customer-facing website (`C:\Users\solid\east-end-pizza`)
 and the hosted reservations/admin app (`C:\Users\solid\east-end-pizza-hosted`, repo now
