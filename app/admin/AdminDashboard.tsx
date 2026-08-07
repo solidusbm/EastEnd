@@ -76,7 +76,7 @@ export default function AdminDashboard({
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-            TV Signage Admin
+            lookatDis Admin
           </h1>
           <p className="text-sm text-zinc-500">Upload images, tag them, and assign them to screens.</p>
         </div>
