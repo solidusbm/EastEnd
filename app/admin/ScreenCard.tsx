@@ -7,8 +7,13 @@ import {
   PIP_OFFSET_UNIT_LABELS,
   PIP_POSITIONS,
   PIP_POSITION_LABELS,
+  MAX_SCROLL_SPEED,
+  MIN_SCROLL_SPEED,
   PIP_SIZE_UNITS,
   PIP_SIZE_UNIT_LABELS,
+  SCROLL_DIRECTION_LABELS,
+  SCROLL_DIRECTIONS,
+  scrollAxis,
   type ImageRecord,
   type ImageType,
   type PipConfig,
@@ -16,6 +21,7 @@ import {
   type PipSizeUnit,
   type SavedPlaylist,
   type Screen,
+  type ScrollConfig,
   type TimingMode,
 } from "@/lib/types";
 import ScheduleEditor from "./ScheduleEditor";
@@ -25,6 +31,22 @@ import TimingModeEditor from "./TimingModeEditor";
 // polls before flagging a screen as stale rather than reacting to it
 // instantly (a single dropped request shouldn't read as "the TV is off").
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
+// Named starting points for scroll speed -- "120 px/second" means nothing to
+// someone standing in a restaurant deciding how fast a menu should crawl.
+const SCROLL_SPEED_PRESETS: { label: string; value: number }[] = [
+  { label: "Slow", value: 40 },
+  { label: "Medium", value: 120 },
+  { label: "Fast", value: 300 },
+];
+
+// Turns px/second into the one number that's actually intuitive: how long a
+// given point takes to travel the length of the screen. Assumes 1080p, which
+// is what these TVs are -- see ScrollConfig on why the stored unit is pixels.
+function crossingSeconds(scroll: ScrollConfig): string {
+  const screenLength = scrollAxis(scroll.direction) === "vertical" ? 1080 : 1920;
+  return (screenLength / Math.max(1, scroll.speedPxPerSecond)).toFixed(1);
+}
 
 function getScreenStatus(lastSeenAt?: string): {
   tone: "online" | "stale" | "unknown";
@@ -79,9 +101,11 @@ export default function ScreenCard({
   const [timingMode, setTimingMode] = useState<TimingMode>(screen.timingMode);
   const [playlist, setPlaylist] = useState(screen.playlist);
   const [pip, setPip] = useState<PipConfig>(screen.pip);
+  const [scroll, setScroll] = useState<ScrollConfig>(screen.scroll);
   const [scheduleRules, setScheduleRules] = useState(screen.scheduleRules);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [pipOpen, setPipOpen] = useState(false);
+  const [scrollOpen, setScrollOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -105,6 +129,7 @@ export default function ScreenCard({
       setTimingMode(screen.timingMode);
       setPlaylist(screen.playlist);
       setPip(screen.pip);
+      setScroll(screen.scroll);
       setScheduleRules(screen.scheduleRules);
     }
   }
@@ -125,6 +150,7 @@ export default function ScreenCard({
           timingMode,
           playlist,
           pip,
+          scroll,
           scheduleRules,
         }),
       });
@@ -170,6 +196,7 @@ export default function ScreenCard({
       : onlyType
         ? `Only ${IMAGE_TYPE_LABELS[onlyType]} · ${imageIdsByType[onlyType].length} image${imageIdsByType[onlyType].length === 1 ? "" : "s"}`
         : `${totalImages} image${totalImages === 1 ? "" : "s"} across categories`) +
+    (scroll.enabled ? ` · Scrolling ${SCROLL_DIRECTION_LABELS[scroll.direction].toLowerCase()}` : "") +
     (pip.enabled ? " · PiP on" : "");
 
   return (
@@ -269,6 +296,127 @@ export default function ScreenCard({
               setImageDurationOverrides(fn);
             }}
           />
+
+          <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <label
+                className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500"
+                title="Show every image as one continuously moving strip instead of one at a time -- same images and order as above, different presentation."
+              >
+                <input
+                  type="checkbox"
+                  checked={scroll.enabled}
+                  onChange={() => {
+                    setDirty(true);
+                    setScroll((prev) => ({ ...prev, enabled: !prev.enabled }));
+                  }}
+                />
+                Scroll mode
+              </label>
+              <button
+                type="button"
+                onClick={() => setScrollOpen((value) => !value)}
+                className="text-xs text-zinc-500"
+              >
+                {scrollOpen ? "Hide ▲" : "Show ▼"}
+              </button>
+            </div>
+            {scrollOpen && (
+              <>
+                <p className="text-[11px] text-zinc-400">
+                  Replaces the one-at-a-time crossfade with a single strip of every image above,
+                  sliding past continuously and looping seamlessly. Images keep their own shape --
+                  each one is scaled to fill the screen across the direction of travel, so nothing
+                  gets black bars, cropped, or stretched. Per-image durations are ignored; speed
+                  decides how long anything stays in view.
+                </p>
+                {scroll.enabled && (
+                  <div className="flex flex-col gap-3 rounded-md border border-zinc-200 dark:border-zinc-800 p-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Direction
+                      </span>
+                      <div className="grid w-fit grid-cols-2 gap-1 rounded-lg border border-zinc-300 dark:border-zinc-700 p-1 text-xs font-medium">
+                        {SCROLL_DIRECTIONS.map((direction) => (
+                          <button
+                            key={direction}
+                            type="button"
+                            onClick={() => {
+                              setDirty(true);
+                              setScroll((prev) => ({ ...prev, direction }));
+                            }}
+                            className={`rounded-md px-3 py-1.5 ${
+                              scroll.direction === direction
+                                ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                            }`}
+                          >
+                            {SCROLL_DIRECTION_LABELS[direction]}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        {scrollAxis(scroll.direction) === "horizontal"
+                          ? "Each image fills the full screen height; its width follows its own shape."
+                          : "Each image fills the full screen width; its height follows its own shape."}
+                      </p>
+                    </div>
+
+                    <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Speed
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={MIN_SCROLL_SPEED}
+                          max={600}
+                          value={scroll.speedPxPerSecond}
+                          onChange={(e) => {
+                            setDirty(true);
+                            setScroll((prev) => ({ ...prev, speedPxPerSecond: Number(e.target.value) }));
+                          }}
+                          className="w-48"
+                        />
+                        <input
+                          type="number"
+                          min={MIN_SCROLL_SPEED}
+                          max={MAX_SCROLL_SPEED}
+                          value={scroll.speedPxPerSecond}
+                          onChange={(e) => {
+                            setDirty(true);
+                            setScroll((prev) => ({ ...prev, speedPxPerSecond: Number(e.target.value) }));
+                          }}
+                          className="w-20 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 outline-none focus:border-zinc-500"
+                        />
+                        <span className="text-[11px] font-normal text-zinc-400">px / second</span>
+                      </div>
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {SCROLL_SPEED_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            setDirty(true);
+                            setScroll((prev) => ({ ...prev, speedPxPerSecond: preset.value }));
+                          }}
+                          className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                            scroll.speedPxPerSecond === preset.value
+                              ? "border-zinc-500 text-zinc-900 dark:text-zinc-100"
+                              : "border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                      <span className="text-[11px] text-zinc-400">
+                        ≈ {crossingSeconds(scroll)}s to cross a 1080p screen
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
             <div className="flex items-center justify-between gap-2">

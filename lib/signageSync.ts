@@ -1,6 +1,12 @@
 import { readStore, withStoreLock, writeStore } from "./store";
 import { deleteUpload, saveUpload } from "./uploads";
-import { defaultPipConfig, type ImageRecord, type ImageType, type Screen } from "./types";
+import {
+  defaultPipConfig,
+  defaultScrollConfig,
+  type ImageRecord,
+  type ImageType,
+  type Screen,
+} from "./types";
 
 const POLL_INTERVAL_MS = 2 * 60 * 1000;
 const INITIAL_DELAY_MS = 10_000;
@@ -91,6 +97,9 @@ async function syncOnce(): Promise<void> {
     timingMode: "category",
     playlist: [],
     pip: defaultPipConfig(),
+    // The hosted admin panel has no scroll mode either -- synced screens
+    // always come in with it off, same as pip above.
+    scroll: defaultScrollConfig(),
     scheduleRules: [],
     signageSyncedAt: s.updated_at,
   }));

@@ -7,6 +7,7 @@ import {
   normalizePipConfig,
   normalizePlaylist,
   normalizeScheduleRules,
+  normalizeScrollConfig,
   normalizeTimingMode,
 } from "@/lib/types";
 
@@ -76,6 +77,9 @@ export async function PUT(
     }
     if (body.pip !== undefined) {
       screen.pip = normalizePipConfig(body.pip);
+    }
+    if (body.scroll !== undefined) {
+      screen.scroll = normalizeScrollConfig(body.scroll);
     }
     if (body.scheduleRules !== undefined) {
       screen.scheduleRules = normalizeScheduleRules(body.scheduleRules);

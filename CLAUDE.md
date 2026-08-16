@@ -26,10 +26,28 @@ renamed `eepc`, live at `https://eastend.sastx.net`). Same restaurant, three rep
 uploadedAt — video/GIF vs. static image is derived from the URL's extension via
 `lib/media.ts`, not a stored field) and `screens` (id, name, imageIdsByType,
 durationSecondsByType, perImageDurationSeconds, imageDurationOverrides, timingMode,
-playlist, pip, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
+playlist, pip, scroll, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
 goes through `lib/store.ts` (`readStore`/`writeStore`/`withStoreLock` — every mutation is a
 locked read-modify-write). `data/settings.json` holds the admin password hash and
 GitHub/Canva credentials — see `lib/settings.ts` / `lib/auth.ts`.
+
+### Scroll mode
+`screen.scroll` (see `ScrollConfig` in `lib/types.ts`) swaps the one-at-a-time crossfade for
+one continuous strip of every image, travelling in one of four directions at a configurable
+px/second. It's presentation only — which images and in what order still comes from
+`timingMode`/`playlist`/`imageIdsByType`, and an active schedule rule still takes over — so
+per-image durations are ignored while it's on.
+
+The no-black-bars property is structural, not a fit setting: each tile is pinned to the full
+cross-axis (`h-full w-auto` scrolling horizontally, `w-full h-auto` vertically) and takes
+whatever length its own aspect ratio implies, and the list repeats enough times to cover the
+screen. **Don't "fix" a tile by pinning both dimensions or adding `object-cover`** — that's
+exactly what reintroduces bars or crops. `shrink-0` on the tiles is load-bearing too: without
+it flexbox squashes every image. Seamlessness comes from translating within `[-unitLength, 0]`
+where `unitLength` is one copy of the list, measured with a ResizeObserver because images only
+reach their real size as they decode. Note that a hidden/backgrounded browser tab pauses
+`requestAnimationFrame` entirely, so the strip legitimately freezes when not visible — that's
+the browser, not a bug (irrelevant on a TV, but it will bite you when testing).
 
 ## Integrations
 - **Canva sync** (`lib/canvaSync.ts`) — polls every 5 min for changed linked designs, re-exports.

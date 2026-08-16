@@ -119,6 +119,80 @@ export interface PipConfig {
   offsetYValue: number;
 }
 
+/**
+ * Which way the strip travels in scroll mode. The axis is implied rather
+ * than stored separately: "left"/"right" are horizontal, "up"/"down" are
+ * vertical, so there's no way to save an axis and a direction that
+ * contradict each other.
+ */
+export type ScrollDirection = "left" | "right" | "up" | "down";
+
+export const SCROLL_DIRECTIONS: ScrollDirection[] = ["left", "right", "up", "down"];
+
+/** Phrased as the motion the viewer sees, since "left" alone reads ambiguously on a TV. */
+export const SCROLL_DIRECTION_LABELS: Record<ScrollDirection, string> = {
+  left: "Right → left",
+  right: "Left → right",
+  up: "Bottom → top",
+  down: "Top → bottom",
+};
+
+export type ScrollAxis = "horizontal" | "vertical";
+
+export function scrollAxis(direction: ScrollDirection): ScrollAxis {
+  return direction === "up" || direction === "down" ? "vertical" : "horizontal";
+}
+
+/** Generous bounds -- a crawl and a blur are both legitimate looks. */
+export const MIN_SCROLL_SPEED = 1;
+export const MAX_SCROLL_SPEED = 2000;
+
+/**
+ * Replaces the screen's one-image-at-a-time crossfade with a single
+ * continuous strip of every image, marching across the display and looping
+ * seamlessly. Which images (and in what order) still comes from the normal
+ * timing setup -- fine-grain playlist order, or every audible category
+ * concatenated -- so this only changes *how* they're presented, never
+ * *which*. Per-image durations are ignored while it's on: speed governs how
+ * long anything stays on screen.
+ *
+ * Nothing is letterboxed here, by construction: each image is scaled to the
+ * full cross-axis (full height when scrolling horizontally, full width when
+ * scrolling vertically) and given whatever length its own aspect ratio
+ * calls for, so a narrow image is simply a narrow slice of the strip rather
+ * than a full-screen slot with black bars either side of it.
+ */
+export interface ScrollConfig {
+  enabled: boolean;
+  direction: ScrollDirection;
+  /**
+   * Travel speed in CSS pixels per second. Resolution-dependent by design
+   * -- it's what the animation actually applies, and these are 1080p TVs.
+   */
+  speedPxPerSecond: number;
+}
+
+export function defaultScrollConfig(): ScrollConfig {
+  return { enabled: false, direction: "left", speedPxPerSecond: 120 };
+}
+
+/** Reads and validates a ScrollConfig, falling back to defaults for any missing/invalid parts. */
+export function normalizeScrollConfig(input: unknown): ScrollConfig {
+  const source = (input ?? {}) as Record<string, unknown>;
+  const fallback = defaultScrollConfig();
+  const speed =
+    typeof source.speedPxPerSecond === "number" ? source.speedPxPerSecond : Number(source.speedPxPerSecond);
+  return {
+    enabled: source.enabled === true,
+    direction: SCROLL_DIRECTIONS.includes(source.direction as ScrollDirection)
+      ? (source.direction as ScrollDirection)
+      : fallback.direction,
+    speedPxPerSecond: Number.isFinite(speed)
+      ? Math.min(MAX_SCROLL_SPEED, Math.max(MIN_SCROLL_SPEED, Math.round(speed)))
+      : fallback.speedPxPerSecond,
+  };
+}
+
 export interface Screen {
   id: string;
   name: string;
@@ -139,6 +213,8 @@ export interface Screen {
   playlist: string[];
   /** Independent overlay rotation shown in a corner on top of the above. See PipConfig. */
   pip: PipConfig;
+  /** Continuous-scroll presentation instead of the one-at-a-time crossfade. See ScrollConfig. */
+  scroll: ScrollConfig;
   /** Time-based auto-switching; first matching rule wins. See ScheduleRule. */
   scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */

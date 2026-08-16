@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { IMAGE_TYPES, type ImageRecord, type ImageType, type PipConfig, type Screen, type TimingMode } from "@/lib/types";
+import {
+  IMAGE_TYPES,
+  scrollAxis,
+  type ImageRecord,
+  type ImageType,
+  type PipConfig,
+  type Screen,
+  type ScrollConfig,
+  type TimingMode,
+} from "@/lib/types";
 import { hexToRgba, LABEL_FONT_CSS_VARS, type LabelStyle } from "@/lib/labelStyle";
 import { isVideoFile } from "@/lib/media";
 import { LABEL_FONT_VARIABLES } from "../fonts";
@@ -156,6 +165,19 @@ function currentImageOf(source: RotationSource | null, cycle: CycleState): Image
   return images[cycle.index % images.length] ?? null;
 }
 
+/**
+ * The flat, ordered list of images the scrolling strip shows. Deliberately
+ * derived from the same RotationSource the crossfade uses, so scroll mode
+ * inherits the screen's existing image selection, ordering, and any active
+ * schedule takeover for free -- it changes how images are presented, never
+ * which ones. Per-image durations have no meaning here; speed replaces them.
+ */
+function scrollImagesOf(source: RotationSource | null): ImageRecord[] {
+  if (!source) return [];
+  if (source.playlistMode) return source.playlistImages;
+  return IMAGE_TYPES.filter((type) => isAvailable(type, source)).flatMap((type) => source.imagesByType[type]);
+}
+
 // A small fixed inset off the screen edge for the four corner presets --
 // "custom" placement uses pip.offsetX/offsetY instead, anchored top-left.
 const PIP_CORNER_INSET = "1rem";
@@ -199,6 +221,182 @@ function captionStyle(labelStyle: LabelStyle, scale: number): CSSProperties {
     backgroundColor: hexToRgba(labelStyle.backgroundColor, labelStyle.backgroundOpacity),
     fontFamily: LABEL_FONT_CSS_VARS[labelStyle.fontFamily],
   };
+}
+
+/**
+ * How many copies of the image list to lay end to end: enough to cover the
+ * screen plus one whole list-length of travel, since the strip is always
+ * translated somewhere within that first list-length. The extra copy over
+ * the strict minimum absorbs sub-pixel rounding and images that change size
+ * as they decode.
+ */
+function copiesNeeded(unitLength: number, viewportLength: number): number {
+  if (unitLength <= 0) return 2;
+  return Math.max(2, Math.ceil(viewportLength / unitLength) + 2);
+}
+
+/**
+ * One seamless strip of every image, translated continuously along one axis.
+ *
+ * Two things keep it free of black bars. Each tile is pinned to the full
+ * cross-axis and left to take whatever length its own aspect ratio implies,
+ * so nothing is ever padded or cropped to fit a fixed slot -- a narrow image
+ * is just a narrow slice of the strip. And the list repeats as many times as
+ * it takes to cover the screen, so there's no empty space to show through
+ * even when every image is narrower than the display.
+ */
+function ScrollingStrip({
+  images,
+  scroll,
+  labelStyle,
+}: {
+  images: ImageRecord[];
+  scroll: ScrollConfig;
+  labelStyle: LabelStyle;
+}) {
+  const vertical = scrollAxis(scroll.direction) === "vertical";
+  // "left"/"up" travel toward the origin, i.e. a negative translation.
+  const towardOrigin = scroll.direction === "left" || scroll.direction === "up";
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const firstCopyRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
+  const [unitLength, setUnitLength] = useState(0);
+  const [copies, setCopies] = useState(2);
+
+  // Measure one copy of the list rather than the whole track: that's the
+  // distance after which the strip repeats itself exactly, so it's also the
+  // distance to wrap at. It can't be computed up front -- images only reach
+  // their real size as they decode, videos only once metadata loads -- hence
+  // an observer rather than a one-shot read.
+  useEffect(() => {
+    const copy = firstCopyRef.current;
+    if (!copy) return;
+
+    function measure() {
+      const el = firstCopyRef.current;
+      if (!el) return;
+      const length = vertical ? el.offsetHeight : el.offsetWidth;
+      setUnitLength(length);
+      setCopies(copiesNeeded(length, vertical ? window.innerHeight : window.innerWidth));
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(copy);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [vertical, images]);
+
+  // The transform is written straight to the node rather than held in state:
+  // it changes every frame, and the component around it already re-renders
+  // once a second on its own.
+  useEffect(() => {
+    if (unitLength <= 0) return;
+    let frame = 0;
+    let previous = performance.now();
+
+    function step(now: number) {
+      // A backgrounded tab -- or a TV waking from sleep -- can hand back a
+      // huge gap; clamping keeps the strip from teleporting mid-loop.
+      const elapsed = Math.min(0.25, (now - previous) / 1000);
+      previous = now;
+      offsetRef.current = (offsetRef.current + scroll.speedPxPerSecond * elapsed) % unitLength;
+      // Always land somewhere in [-unitLength, 0], so a full copy is parked
+      // off-screen behind the leading edge -- that's what makes the wrap
+      // invisible instead of a jump back to the start.
+      const shift = towardOrigin ? -offsetRef.current : offsetRef.current - unitLength;
+      const track = trackRef.current;
+      if (track) {
+        track.style.transform = vertical
+          ? `translate3d(0, ${shift}px, 0)`
+          : `translate3d(${shift}px, 0, 0)`;
+      }
+      frame = requestAnimationFrame(step);
+    }
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [unitLength, vertical, towardOrigin, scroll.speedPxPerSecond]);
+
+  const trackClassName = vertical ? "flex w-full flex-col" : "flex h-full";
+  const copyClassName = vertical ? "flex w-full shrink-0 flex-col" : "flex h-full shrink-0";
+
+  return (
+    <div ref={trackRef} className={`${trackClassName} will-change-transform`}>
+      {Array.from({ length: copies }, (_, copyIndex) => (
+        <div
+          key={copyIndex}
+          ref={copyIndex === 0 ? firstCopyRef : undefined}
+          className={copyClassName}
+          aria-hidden={copyIndex > 0}
+        >
+          {images.map((image, index) => (
+            <ScrollTile
+              key={`${index}-${image.id}`}
+              image={image}
+              vertical={vertical}
+              labelStyle={labelStyle}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One image in the strip: pinned to the full cross-axis with its length left
+ * on `auto`. Pinning both dimensions is exactly what would reintroduce the
+ * black bars, so don't. `shrink-0` matters just as much -- without it
+ * flexbox would compress the tiles to fit the screen and squash every image.
+ */
+function ScrollTile({
+  image,
+  vertical,
+  labelStyle,
+}: {
+  image: ImageRecord;
+  vertical: boolean;
+  labelStyle: LabelStyle;
+}) {
+  const wrapperClassName = vertical ? "relative w-full shrink-0" : "relative h-full shrink-0";
+  const mediaClassName = vertical ? "block h-auto w-full" : "block h-full w-auto";
+  const label = image.showLabel && image.label ? image.label : null;
+
+  return (
+    <div className={wrapperClassName}>
+      {isVideoFile(image.url) ? (
+        // Safe to pass loadAndPlay directly here, unlike the crossfade
+        // layers: it's a module-scope function, so React sees a stable ref
+        // identity and only calls it on mount -- and a tile's src never
+        // changes anyway.
+        <video
+          ref={loadAndPlay}
+          src={image.url}
+          muted
+          loop
+          playsInline
+          autoPlay
+          className={mediaClassName}
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image.url} alt="" className={mediaClassName} />
+      )}
+      {label && (
+        <div
+          className="absolute inset-x-0 bottom-0 px-6 py-3 text-center"
+          style={captionStyle(labelStyle, 1)}
+        >
+          <p className="font-medium">{label}</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DisplayClient({ screenId }: { screenId: string }) {
@@ -289,6 +487,11 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
   const currentUrl = currentImage?.url ?? null;
   const currentLabel = currentImage?.showLabel && currentImage.label ? currentImage.label : null;
 
+  // Scroll mode replaces the crossfade entirely, but the crossfade's own
+  // state above is still kept up to date so toggling it off mid-session
+  // resumes cleanly rather than fading in from a blank layer.
+  const scrollImages = data?.screen.scroll.enabled ? scrollImagesOf(mainSource) : [];
+
   const pipSource = data ? toPipSource(data) : null;
   const pipImage = currentImageOf(pipSource, pipCycle);
   const pipUrl = pipImage?.url ?? null;
@@ -340,48 +543,58 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
 
   return (
     <div className={`fixed inset-0 overflow-hidden bg-black ${LABEL_FONT_VARIABLES}`}>
-      {[0, 1].map((layerIndex) => {
-        const src = layers[layerIndex];
-        if (!src) return null;
-        const layerClassName =
-          "absolute inset-0 h-full w-full object-contain transition-opacity duration-1000 ease-in-out";
-        const layerStyle = { opacity: activeLayer === layerIndex ? 1 : 0 };
-        if (isVideoFile(src)) {
-          return (
-            <video
-              key={layerIndex}
-              ref={(el) => {
-                // Deliberately NOT calling loadAndPlay here: this is an
-                // inline arrow function, so React treats it as a new ref
-                // identity on every re-render (this component re-renders
-                // every second) and would re-invoke it constantly -- calling
-                // .load() that often would restart playback in a loop and
-                // the video would never get to actually play. The effect
-                // below is keyed off actual src changes instead, not renders.
-                videoLayerRefs.current[layerIndex] = el;
-              }}
-              src={src}
-              muted
-              loop
-              playsInline
-              autoPlay
-              className={layerClassName}
-              style={layerStyle}
-            />
-          );
-        }
-        return (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={layerIndex} src={src} alt="" className={layerClassName} style={layerStyle} />
-        );
-      })}
-      {currentLabel && (
-        <div
-          className="absolute inset-x-0 bottom-0 px-6 py-3 text-center"
-          style={captionStyle(data.labelStyle, 1)}
-        >
-          <p className="font-medium">{currentLabel}</p>
-        </div>
+      {scrollImages.length > 0 ? (
+        <ScrollingStrip
+          images={scrollImages}
+          scroll={data.screen.scroll}
+          labelStyle={data.labelStyle}
+        />
+      ) : (
+        <>
+          {[0, 1].map((layerIndex) => {
+            const src = layers[layerIndex];
+            if (!src) return null;
+            const layerClassName =
+              "absolute inset-0 h-full w-full object-contain transition-opacity duration-1000 ease-in-out";
+            const layerStyle = { opacity: activeLayer === layerIndex ? 1 : 0 };
+            if (isVideoFile(src)) {
+              return (
+                <video
+                  key={layerIndex}
+                  ref={(el) => {
+                    // Deliberately NOT calling loadAndPlay here: this is an
+                    // inline arrow function, so React treats it as a new ref
+                    // identity on every re-render (this component re-renders
+                    // every second) and would re-invoke it constantly -- calling
+                    // .load() that often would restart playback in a loop and
+                    // the video would never get to actually play. The effect
+                    // below is keyed off actual src changes instead, not renders.
+                    videoLayerRefs.current[layerIndex] = el;
+                  }}
+                  src={src}
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  className={layerClassName}
+                  style={layerStyle}
+                />
+              );
+            }
+            return (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={layerIndex} src={src} alt="" className={layerClassName} style={layerStyle} />
+            );
+          })}
+          {currentLabel && (
+            <div
+              className="absolute inset-x-0 bottom-0 px-6 py-3 text-center"
+              style={captionStyle(data.labelStyle, 1)}
+            >
+              <p className="font-medium">{currentLabel}</p>
+            </div>
+          )}
+        </>
       )}
       {pipUrl && (
         <div

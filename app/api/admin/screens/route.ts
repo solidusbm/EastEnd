@@ -8,6 +8,7 @@ import {
   normalizePipConfig,
   normalizePlaylist,
   normalizeScheduleRules,
+  normalizeScrollConfig,
   normalizeTimingMode,
   type Screen,
 } from "@/lib/types";
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
       timingMode: normalizeTimingMode(body.timingMode),
       playlist: normalizePlaylist(body.playlist),
       pip: normalizePipConfig(body.pip),
+      scroll: normalizeScrollConfig(body.scroll),
       scheduleRules: normalizeScheduleRules(body.scheduleRules),
     };
 
