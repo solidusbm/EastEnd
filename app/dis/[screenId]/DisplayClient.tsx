@@ -14,6 +14,7 @@ import {
 import { hexToRgba, LABEL_FONT_CSS_VARS, type LabelStyle } from "@/lib/labelStyle";
 import { isVideoFile } from "@/lib/media";
 import { LABEL_FONT_VARIABLES } from "../fonts";
+import { useKeepAwake } from "./useKeepAwake";
 
 interface DisplayOverride {
   active: true;
@@ -481,6 +482,10 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     });
     prevLayersRef.current = layers;
   }, [layers]);
+
+  // Falls back to false until the config arrives -- a screen that turned this
+  // off shouldn't briefly grab a wake lock on every page load.
+  useKeepAwake(data?.screen.keepAwake ?? false);
 
   const mainSource = data ? toMainSource(data) : null;
   const currentImage = currentImageOf(mainSource, cycle);

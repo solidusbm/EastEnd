@@ -138,6 +138,12 @@ whatever public URL that host serves. It currently runs on Coolify at
 > LAN IP, used to be supported as well; that was retired on 2026-08-16 and
 > the installer, Windows-service scripts and LAN-address UI were removed.
 
+Each screen has a **Keep the TV awake** toggle in `/admin` (on by default). While
+its display page is open it holds a screen wake lock, falling back to a hidden
+looping video on TV browsers too old to support one. That covers most
+screensavers, but it cannot override a device-level power timer — on a Fire TV
+stick also set Settings → Display & Sounds → Screensaver → Start Delay → Never.
+
 On the TV itself: set the display URL as the browser's home page
 / bookmark and disable sleep/screensaver in the TV's settings. Older
 WebOS/Tizen browsers have limited CSS/JS support, so test on the actual TV

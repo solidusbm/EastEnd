@@ -102,6 +102,7 @@ export default function ScreenCard({
   const [playlist, setPlaylist] = useState(screen.playlist);
   const [pip, setPip] = useState<PipConfig>(screen.pip);
   const [scroll, setScroll] = useState<ScrollConfig>(screen.scroll);
+  const [keepAwake, setKeepAwake] = useState(screen.keepAwake);
   const [scheduleRules, setScheduleRules] = useState(screen.scheduleRules);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [pipOpen, setPipOpen] = useState(false);
@@ -130,6 +131,7 @@ export default function ScreenCard({
       setPlaylist(screen.playlist);
       setPip(screen.pip);
       setScroll(screen.scroll);
+      setKeepAwake(screen.keepAwake);
       setScheduleRules(screen.scheduleRules);
     }
   }
@@ -151,6 +153,7 @@ export default function ScreenCard({
           playlist,
           pip,
           scroll,
+          keepAwake,
           scheduleRules,
         }),
       });
@@ -197,7 +200,9 @@ export default function ScreenCard({
         ? `Only ${IMAGE_TYPE_LABELS[onlyType]} · ${imageIdsByType[onlyType].length} image${imageIdsByType[onlyType].length === 1 ? "" : "s"}`
         : `${totalImages} image${totalImages === 1 ? "" : "s"} across categories`) +
     (scroll.enabled ? ` · Scrolling ${SCROLL_DIRECTION_LABELS[scroll.direction].toLowerCase()}` : "") +
-    (pip.enabled ? " · PiP on" : "");
+    (pip.enabled ? " · PiP on" : "") +
+    // Only worth surfacing when it's off, since on is the default.
+    (keepAwake ? "" : " · May sleep");
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
@@ -416,6 +421,30 @@ export default function ScreenCard({
                 )}
               </>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">
+            <label
+              className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500"
+              title="Stops the TV blanking or dropping into a screensaver while this screen is on it."
+            >
+              <input
+                type="checkbox"
+                checked={keepAwake}
+                onChange={() => {
+                  setDirty(true);
+                  setKeepAwake((value) => !value);
+                }}
+              />
+              Keep the TV awake
+            </label>
+            <p className="text-[11px] text-zinc-400">
+              On by default. Holds a screen wake lock while this display page is open, falling
+              back to a hidden looping video on TV browsers too old to support one. If a stick
+              or TV still sleeps, that&apos;s a device-level power timer and only its own
+              settings can turn it off — on a Fire TV, Settings → Display &amp; Sounds →
+              Screensaver → Start Delay → Never.
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 dark:border-zinc-800 p-3">

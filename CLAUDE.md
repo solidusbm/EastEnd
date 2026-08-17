@@ -31,7 +31,7 @@ renamed `eepc`, live at `https://eastend.sastx.net`). Same restaurant, three rep
 uploadedAt — video/GIF vs. static image is derived from the URL's extension via
 `lib/media.ts`, not a stored field) and `screens` (id, name, imageIdsByType,
 durationSecondsByType, perImageDurationSeconds, imageDurationOverrides, timingMode,
-playlist, pip, scroll, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
+playlist, pip, scroll, keepAwake, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
 goes through `lib/store.ts` (`readStore`/`writeStore`/`withStoreLock` — every mutation is a
 locked read-modify-write). `data/settings.json` holds the admin password hash and
 GitHub/Canva credentials — see `lib/settings.ts` / `lib/auth.ts`.
@@ -53,6 +53,24 @@ where `unitLength` is one copy of the list, measured with a ResizeObserver becau
 reach their real size as they decode. Note that a hidden/backgrounded browser tab pauses
 `requestAnimationFrame` entirely, so the strip legitimately freezes when not visible — that's
 the browser, not a bug (irrelevant on a TV, but it will bite you when testing).
+
+### Keep awake
+`screen.keepAwake` (see `app/dis/[screenId]/useKeepAwake.ts`) stops the TV blanking or
+screensaving while a display page is open. **Defaults to ON**, unlike `pip`/`scroll` — a menu
+board that blanks itself has failed at its only job, so `normalizeKeepAwake` treats
+absent/invalid as true and only an explicit `false` turns it off.
+
+Two mechanisms, in order: the Screen Wake Lock API, then a 2x2px silent looping
+`public/keep-awake.mp4` (~1.8 KB, ffmpeg-generated, H.264 baseline) for TV browsers that lack
+the API or refuse the lock. The video runs **only** as a fallback — cheap TV hardware has very
+few video decoders and permanently burning one could starve the rotation's own MP4/GIF
+playback. Note the platform releases a screen wake lock every time the page is hidden and never
+restores it, so re-acquiring on `visibilitychange` is required, not defensive padding.
+
+Be honest with the user about the ceiling: **a web page cannot always beat an OS sleep timer.**
+This suppresses the screensaver in most cases, but a Fire TV stick set to power the display
+down on a timer needs its own setting changed (Settings → Display & Sounds → Screensaver →
+Start Delay → Never). Don't promise more than that.
 
 ## Integrations
 - **Canva sync** (`lib/canvaSync.ts`) — polls every 5 min for changed linked designs, re-exports.

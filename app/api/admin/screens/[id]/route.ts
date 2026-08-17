@@ -6,6 +6,7 @@ import {
   normalizeImageIdsByType,
   normalizePipConfig,
   normalizePlaylist,
+  normalizeKeepAwake,
   normalizeScheduleRules,
   normalizeScrollConfig,
   normalizeTimingMode,
@@ -80,6 +81,9 @@ export async function PUT(
     }
     if (body.scroll !== undefined) {
       screen.scroll = normalizeScrollConfig(body.scroll);
+    }
+    if (body.keepAwake !== undefined) {
+      screen.keepAwake = normalizeKeepAwake(body.keepAwake);
     }
     if (body.scheduleRules !== undefined) {
       screen.scheduleRules = normalizeScheduleRules(body.scheduleRules);

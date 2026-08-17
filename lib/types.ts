@@ -193,6 +193,20 @@ export function normalizeScrollConfig(input: unknown): ScrollConfig {
   };
 }
 
+/**
+ * Whether a screen's display page actively fights the TV going to sleep or
+ * dropping into a screensaver. Defaults to ON: a menu board that blanks
+ * itself has failed at the one thing it exists to do, so the safe default is
+ * the one that keeps showing the menu. See useKeepAwake for what the display
+ * actually does with it, and why a web page can't always win this fight.
+ */
+export const DEFAULT_KEEP_AWAKE = true;
+
+/** Absent/invalid means "on" -- see DEFAULT_KEEP_AWAKE. Only an explicit `false` turns it off. */
+export function normalizeKeepAwake(input: unknown): boolean {
+  return input !== false;
+}
+
 export interface Screen {
   id: string;
   name: string;
@@ -215,6 +229,8 @@ export interface Screen {
   pip: PipConfig;
   /** Continuous-scroll presentation instead of the one-at-a-time crossfade. See ScrollConfig. */
   scroll: ScrollConfig;
+  /** Hold the TV awake while this screen's display page is open. See DEFAULT_KEEP_AWAKE. */
+  keepAwake: boolean;
   /** Time-based auto-switching; first matching rule wins. See ScheduleRule. */
   scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */

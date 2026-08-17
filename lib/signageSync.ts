@@ -1,6 +1,7 @@
 import { readStore, withStoreLock, writeStore } from "./store";
 import { deleteUpload, saveUpload } from "./uploads";
 import {
+  DEFAULT_KEEP_AWAKE,
   defaultPipConfig,
   defaultScrollConfig,
   type ImageRecord,
@@ -100,6 +101,7 @@ async function syncOnce(): Promise<void> {
     // The hosted admin panel has no scroll mode either -- synced screens
     // always come in with it off, same as pip above.
     scroll: defaultScrollConfig(),
+    keepAwake: DEFAULT_KEEP_AWAKE,
     scheduleRules: [],
     signageSyncedAt: s.updated_at,
   }));
