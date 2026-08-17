@@ -14,10 +14,10 @@ automatically.
 - **Storage**: images live in `public/uploads/` and the small JSON config
   (screens + image metadata) lives in `data/config.json`, both on disk on
   whatever machine hosts the app — no cloud dependency, no database. This is
-  enough at this scale (one location, a handful of screens). A local PC
-  install runs fully offline; a hosted install (any host that gives the app a
-  persistent, writable filesystem — e.g. a container with a mounted volume)
-  needs that host reachable, same as any other web app. Neither directory is
+  enough at this scale (one location, a handful of screens). It needs a host
+  that gives the app a persistent, writable filesystem — a container with
+  mounted volumes — and that host reachable, same as any other web app.
+  Neither directory is
   committed to git (see `.gitignore`); back them up directly on whatever
   machine hosts the app.
 - **Auth**: `/admin` and the `/api/admin/*` mutation routes are protected by a
@@ -53,16 +53,8 @@ automatically.
   entering the GitHub backup and Canva credentials from the browser —
   persisted to `data/settings.json`, no `.env.local` editing or restart
   needed. Env vars still work as a fallback for anything left unset there.
-  It also has an "Open uploads folder" button next to the image library that
-  launches Explorer at `public/uploads` on whichever machine is running the
-  server — only works for a local Windows install opened on that same PC; a
-  no-op with an explanatory message on a hosted deployment. Its **Server
-  address** box lists the URL(s) — LAN IP plus port — that TVs and other
-  devices on the same local network use to reach the app (not applicable to
-  a hosted deployment, which TVs instead reach at its public URL), and lets
-  you change the port (saved to `data/settings.json`'s `serverPort`; takes
-  effect on the server's next restart, unlike the other Setup fields — see
-  `deploy/run-server.js`).
+  It also sets the caption label style and lets you change the admin
+  password.
 
 ## Environment variables
 
@@ -107,9 +99,8 @@ reference or for setting it via `.env.local` instead.
 3. In the integration's settings, add a redirect URL that exactly matches
    the one you'll use as `CANVA_REDIRECT_URI` (or the "Redirect URI" field in
    Setup) — for local dev, `http://localhost:3000/api/admin/canva/callback`;
-   for a deployed install, swap in whatever URL is actually used to reach
-   `/admin` day to day (a LAN IP for a local PC install, or the public URL
-   for a hosted one).
+   for a deployed install, swap in whatever public URL is actually used to
+   reach `/admin` day to day.
 4. Either paste the Client ID/Secret/Redirect URI into the Setup section in
    `/admin` and click Save, or set `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`,
    and `CANVA_REDIRECT_URI` in `.env.local` and restart the app.
@@ -136,20 +127,18 @@ the `.env.local` equivalent.
 Since storage is local disk rather than a cloud service, this app needs a
 host with a persistent, writable filesystem — that rules out purely
 stateless/serverless hosting (Vercel and similar, which have a read-only,
-ephemeral filesystem), but any of the following work:
+ephemeral filesystem).
 
-- **A dedicated PC on-site.** Copy the project onto the PC and double-click
-  `deploy/setup.bat` — it installs Node if needed, builds for production,
-  registers an auto-starting/auto-restarting Windows Service, and opens the
-  firewall for the TVs. See [`deploy/README.md`](deploy/README.md) for the
-  full walkthrough (including doing each step manually), and for how to find
-  the local access URL the TVs should use.
-- **A hosted container with a persistent volume** — e.g. a Docker deployment
-  (Coolify, Railway, a plain VPS, etc.) with `data/` and `public/uploads/`
-  mounted as volumes so they survive redeploys. TVs then just point at
-  whatever public URL that host serves.
+Deploy it as **a container with persistent volumes** — `data/` and
+`public/uploads/` mounted so they survive redeploys — and point the TVs at
+whatever public URL that host serves. It currently runs on Coolify at
+`https://lookatdis.sastx.net`.
 
-Either way, on the TV itself: set the display URL as the browser's home page
+> Running it on a Windows PC at the venue, with the TVs pointed at that PC's
+> LAN IP, used to be supported as well; that was retired on 2026-08-16 and
+> the installer, Windows-service scripts and LAN-address UI were removed.
+
+On the TV itself: set the display URL as the browser's home page
 / bookmark and disable sleep/screensaver in the TV's settings. Older
 WebOS/Tizen browsers have limited CSS/JS support, so test on the actual TV
 early rather than assuming desktop Chrome behavior carries over.
@@ -184,7 +173,6 @@ migration needed.
   - `ImageLibrary.tsx` — browse/edit/delete/replace uploaded images.
   - `SetupPanel.tsx` — admin password change, GitHub backup and Canva
     credential forms, and connect/disconnect.
-  - `OpenUploadsFolder.tsx` — the "Open uploads folder" button.
 - `app/dis/[screenId]/` — full-screen TV view.
 - `app/api/admin/` — authenticated CRUD for images, screens, and settings;
   `setup` (first-run account creation) and `change-password` are the two
@@ -207,5 +195,3 @@ migration needed.
 - `lib/auth.ts` / `proxy.ts` — password hashing/verification, session
   cookies, and route protection (including the redirect-to-setup logic when
   no account exists yet).
-- `deploy/` — Windows Service install/uninstall scripts and the local PC
-  setup guide (one deployment option among others — see "Deploying" above).

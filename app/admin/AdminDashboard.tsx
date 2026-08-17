@@ -8,7 +8,6 @@ import ImageLibrary from "./ImageLibrary";
 import ScreenCard from "./ScreenCard";
 import NewScreenForm from "./NewScreenForm";
 import SetupPanel from "./SetupPanel";
-import OpenUploadsFolder from "./OpenUploadsFolder";
 import ThemeToggle from "../ThemeToggle";
 import EmergencyOverrideBanner from "./EmergencyOverrideBanner";
 import BulkEditPanel from "./BulkEditPanel";
@@ -162,7 +161,6 @@ export default function AdminDashboard({
           </h2>
           <span className="text-sm text-zinc-500">{libraryOpen ? "Hide ▲" : "Show ▼"}</span>
         </button>
-        <OpenUploadsFolder />
         {libraryOpen && (
           <ImageLibrary
             images={images}

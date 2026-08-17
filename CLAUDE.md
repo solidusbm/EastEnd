@@ -3,17 +3,22 @@
 Next.js app driving restaurant TV menu-board displays (rotating menu/food/location/promo
 photos/GIFs/videos). Storage is local disk (`data/config.json` + `public/uploads/`, both
 gitignored) rather than a database, so this needs a host with a persistent, writable
-filesystem — no serverless/Vercel. Two supported deployment shapes, not one:
+filesystem — no serverless/Vercel.
 
-- **Local PC install** — runs directly on a Windows PC on-site; TVs point at that PC's LAN
-  IP. See `deploy/README.md`. This is the original design and still fully supported.
-- **Hosted, containerized** — currently deployed at `https://lookatdis.sastx.net` (Coolify on
-  the SaStx VPS, see `C:\Users\solid\SaStx-VPS\CLAUDE.md`), with `data/` and
-  `public/uploads/` as Coolify Volume Mounts so they survive redeploys. TVs point at the
-  public URL instead of a LAN IP.
+**Hosted, containerized, and that is the only shape.** Deployed at
+`https://lookatdis.sastx.net` (Coolify on the SaStx VPS, see
+`C:\Users\solid\SaStx-VPS\CLAUDE.md`), with `data/` and `public/uploads/` as Coolify Volume
+Mounts so they survive redeploys. TVs point at that public URL.
 
-Neither shape is "the real one" — don't write new code or docs that assume only one. Local:
-`C:\Users\solid\EastEnd` (directory name unchanged; the app itself is branded **lookatDis**).
+The app was originally built to run on a Windows PC at the restaurant with TVs pointed at its
+LAN IP, and for a while both shapes were supported. **That local install was retired
+2026-08-16** and its scaffolding deleted: the `deploy/` directory (Windows service installer,
+`node-windows`, firewall/LAN setup), the `server-info` and `uploads-folder` API routes, the
+`OpenUploadsFolder` admin component, and the "Server address" card in `SetupPanel`. Don't
+reintroduce LAN-IP discovery, `explorer.exe` shell-outs, or a configurable server port —
+the port is the container's. `lib/settings.ts` still carries a now-unused `serverPort` field
+(left deliberately, it's harmless dead config). Working copy: `C:\Users\solid\EastEnd`
+(directory name unchanged; the app itself is branded **lookatDis**).
 Repo: `solidusbm/lookatDis` (renamed 2026-08-07, was `solidusbm/EastEnd`; GitHub redirects the
 old URL), actively worked on branch `claude/restaurant-tv-signage-app-w8rtr4` (not main).
 
@@ -79,10 +84,17 @@ are unauthenticated clients).
 ## Build / run notes
 - `NewScreenForm.tsx` only asks for the Display name; `POST /api/admin/screens` derives the
   slug server-side via `slugify()` + collision-avoidance (`-2`, `-3`).
-- Local install: rebuilding requires `npm run build` THEN restarting `npm run start` (runs in
-  production mode, NOT `next dev`). Pushing to GitHub alone does NOT update a running local
-  instance — this bit the user once ("new feature isn't showing up"). The hosted deployment
-  redeploys itself from a push (Coolify watches the branch).
+- **Push-to-deploy is fragile here — verify, never assume a push went live.** Coolify matches
+  an incoming GitHub webhook against the application's configured `git_repository` string. The
+  repo was renamed `solidusbm/EastEnd` → `solidusbm/lookatDis` on 2026-08-07 but Coolify's app
+  record was not updated, so from that day every webhook was acknowledged with a 200 and then
+  matched nothing: no deploy was queued, not even a failed one, and two commits sat unshipped
+  for nine days before anyone noticed (found 2026-08-16). Confirm a deploy actually landed by
+  checking a route that only the new build serves, or read the running image tag — it is the
+  built commit SHA:
+  `ssh -i C:\Users\solid\sastx root@66.179.136.253 "docker ps --format '{{.Image}}' | grep <app-hash>"`.
+  Separately, Cloudflare Access covers `coolify.sastx.net/webhooks/*` and needs a Bypass rule
+  or GitHub's POST just gets a login page — that was fixed for `wwrvb` on 2026-08-10.
 
 ## Cross-agent
 Read by both Claude Code (alongside AGENTS.md) and Hermes. Portfolio rules: `~/.claude/CLAUDE.md`.
