@@ -138,6 +138,12 @@ whatever public URL that host serves. It currently runs on Coolify at
 > LAN IP, used to be supported as well; that was retired on 2026-08-16 and
 > the installer, Windows-service scripts and LAN-address UI were removed.
 
+For a TV mounted sideways, set that screen's **Orientation** in `/admin` to one
+of the portrait options — the player still sends an ordinary landscape picture
+regardless of how the panel is hung, so the rotation happens in the app. Pick
+whichever of 90°/270° comes out the right way up; they differ only by which end
+lands on top.
+
 Each screen has a **Keep the TV awake** toggle in `/admin` (on by default). While
 its display page is open it holds a screen wake lock, falling back to a hidden
 looping video on TV browsers too old to support one. That covers most

@@ -9,6 +9,8 @@ import {
   PIP_POSITION_LABELS,
   MAX_SCROLL_SPEED,
   MIN_SCROLL_SPEED,
+  ORIENTATION_LABELS,
+  ORIENTATIONS,
   PIP_SIZE_UNITS,
   PIP_SIZE_UNIT_LABELS,
   SCROLL_DIRECTION_LABELS,
@@ -21,6 +23,7 @@ import {
   type PipSizeUnit,
   type SavedPlaylist,
   type Screen,
+  type Orientation,
   type ScrollConfig,
   type TimingMode,
 } from "@/lib/types";
@@ -103,6 +106,7 @@ export default function ScreenCard({
   const [pip, setPip] = useState<PipConfig>(screen.pip);
   const [scroll, setScroll] = useState<ScrollConfig>(screen.scroll);
   const [keepAwake, setKeepAwake] = useState(screen.keepAwake);
+  const [orientation, setOrientation] = useState<Orientation>(screen.orientation);
   const [scheduleRules, setScheduleRules] = useState(screen.scheduleRules);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [pipOpen, setPipOpen] = useState(false);
@@ -132,6 +136,7 @@ export default function ScreenCard({
       setPip(screen.pip);
       setScroll(screen.scroll);
       setKeepAwake(screen.keepAwake);
+      setOrientation(screen.orientation);
       setScheduleRules(screen.scheduleRules);
     }
   }
@@ -154,6 +159,7 @@ export default function ScreenCard({
           pip,
           scroll,
           keepAwake,
+          orientation,
           scheduleRules,
         }),
       });
@@ -202,7 +208,8 @@ export default function ScreenCard({
     (scroll.enabled ? ` · Scrolling ${SCROLL_DIRECTION_LABELS[scroll.direction].toLowerCase()}` : "") +
     (pip.enabled ? " · PiP on" : "") +
     // Only worth surfacing when it's off, since on is the default.
-    (keepAwake ? "" : " · May sleep");
+    (keepAwake ? "" : " · May sleep") +
+    (orientation === 0 ? "" : ` · ${ORIENTATION_LABELS[orientation]}`);
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
@@ -438,6 +445,35 @@ export default function ScreenCard({
               />
               Keep the TV awake
             </label>
+            <div className="flex flex-col gap-1 border-t border-zinc-200 dark:border-zinc-800 pt-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Orientation
+              </span>
+              <div className="flex w-fit flex-wrap items-center gap-1 rounded-lg border border-zinc-300 dark:border-zinc-700 p-1 text-xs font-medium">
+                {ORIENTATIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setDirty(true);
+                      setOrientation(value);
+                    }}
+                    className={`rounded-md px-3 py-1.5 ${
+                      orientation === value
+                        ? "bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                    }`}
+                  >
+                    {ORIENTATION_LABELS[value]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                For a TV mounted sideways. The stick still sends a normal landscape picture, so
+                the rotation has to happen here. Pick whichever portrait option comes out the
+                right way up — 90° and 270° differ only by which end is the top.
+              </p>
+            </div>
             <p className="text-[11px] text-zinc-400">
               On by default. Holds a screen wake lock while this display page is open, falling
               back to a hidden looping video on TV browsers too old to support one. If a stick

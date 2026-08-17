@@ -2,6 +2,7 @@ import { readStore, withStoreLock, writeStore } from "./store";
 import { deleteUpload, saveUpload } from "./uploads";
 import {
   DEFAULT_KEEP_AWAKE,
+  DEFAULT_ORIENTATION,
   defaultPipConfig,
   defaultScrollConfig,
   type ImageRecord,
@@ -102,6 +103,7 @@ async function syncOnce(): Promise<void> {
     // always come in with it off, same as pip above.
     scroll: defaultScrollConfig(),
     keepAwake: DEFAULT_KEEP_AWAKE,
+    orientation: DEFAULT_ORIENTATION,
     scheduleRules: [],
     signageSyncedAt: s.updated_at,
   }));

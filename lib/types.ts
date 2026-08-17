@@ -194,6 +194,38 @@ export function normalizeScrollConfig(input: unknown): ScrollConfig {
 }
 
 /**
+ * How far to rotate everything drawn on screen, in degrees clockwise.
+ *
+ * A TV physically mounted sideways still receives an ordinary landscape
+ * signal -- the stick or player has no idea the panel was turned -- so the
+ * content comes out lying on its side and the only place left to fix it is
+ * here, by rotating what gets painted.
+ */
+export type Orientation = 0 | 90 | 180 | 270;
+
+export const ORIENTATIONS: Orientation[] = [0, 90, 180, 270];
+
+export const ORIENTATION_LABELS: Record<Orientation, string> = {
+  0: "Landscape",
+  90: "Portrait (90°)",
+  180: "Landscape, flipped",
+  270: "Portrait (270°)",
+};
+
+export const DEFAULT_ORIENTATION: Orientation = 0;
+
+/** Anything that isn't one of the four quarter turns falls back to landscape. */
+export function normalizeOrientation(input: unknown): Orientation {
+  const num = typeof input === "number" ? input : Number(input);
+  return ORIENTATIONS.includes(num as Orientation) ? (num as Orientation) : DEFAULT_ORIENTATION;
+}
+
+/** True for the two quarter turns that swap the display's width and height. */
+export function isQuarterTurn(orientation: Orientation): boolean {
+  return orientation === 90 || orientation === 270;
+}
+
+/**
  * Whether a screen's display page actively fights the TV going to sleep or
  * dropping into a screensaver. Defaults to ON: a menu board that blanks
  * itself has failed at the one thing it exists to do, so the safe default is
@@ -231,6 +263,8 @@ export interface Screen {
   scroll: ScrollConfig;
   /** Hold the TV awake while this screen's display page is open. See DEFAULT_KEEP_AWAKE. */
   keepAwake: boolean;
+  /** Quarter-turn rotation for sideways-mounted TVs. See Orientation. */
+  orientation: Orientation;
   /** Time-based auto-switching; first matching rule wins. See ScheduleRule. */
   scheduleRules: ScheduleRule[];
   /** Last time this screen's display page polled /api/display/[screenId], for an "is this TV alive" check in /admin. */

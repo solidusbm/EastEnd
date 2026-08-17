@@ -31,7 +31,7 @@ renamed `eepc`, live at `https://eastend.sastx.net`). Same restaurant, three rep
 uploadedAt — video/GIF vs. static image is derived from the URL's extension via
 `lib/media.ts`, not a stored field) and `screens` (id, name, imageIdsByType,
 durationSecondsByType, perImageDurationSeconds, imageDurationOverrides, timingMode,
-playlist, pip, scroll, keepAwake, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
+playlist, pip, scroll, keepAwake, orientation, scheduleRules, lastSeenAt). Images live in `public/uploads/`. All read/write
 goes through `lib/store.ts` (`readStore`/`writeStore`/`withStoreLock` — every mutation is a
 locked read-modify-write). `data/settings.json` holds the admin password hash and
 GitHub/Canva credentials — see `lib/settings.ts` / `lib/auth.ts`.
@@ -53,6 +53,26 @@ where `unitLength` is one copy of the list, measured with a ResizeObserver becau
 reach their real size as they decode. Note that a hidden/backgrounded browser tab pauses
 `requestAnimationFrame` entirely, so the strip legitimately freezes when not visible — that's
 the browser, not a bug (irrelevant on a TV, but it will bite you when testing).
+
+### Orientation
+`screen.orientation` (0/90/180/270, default 0) rotates everything the display draws, for TVs
+mounted sideways — the stick still sends an ordinary landscape signal, so the panel being
+turned is invisible to it and the rotation has to happen in CSS.
+
+`DisplayFrame` in `DisplayClient.tsx` is the single `position: fixed` element and carries the
+transform; every display state renders inside it, so the "no images yet" placeholder and the
+emergency override come out the right way up too. For the quarter turns the box is built at the
+swapped size (100vh x 100vw) and rotated back over the viewport — the paired `translate` is
+what returns it on-screen, since rotating about the top-left corner alone swings it entirely
+outside. Everything inside positions with `absolute`, deliberately: a transformed ancestor is
+the containing block for `fixed` descendants anyway, so `fixed` in there would not mean what
+it looks like it means.
+
+Watch for code that reads `window.innerWidth/innerHeight` to mean "how big is the display" —
+under 90/270 those are the wrong way round. `ScrollingStrip` measures its own container
+instead, which is why scroll mode still tiles correctly in portrait. Verified at all four
+orientations: the frame's post-transform box covers the viewport exactly, and 270 + horizontal
+scroll keeps full-cross-axis tiles with zero gaps.
 
 ### Keep awake
 `screen.keepAwake` (see `app/dis/[screenId]/useKeepAwake.ts`) stops the TV blanking or

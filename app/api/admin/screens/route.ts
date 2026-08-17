@@ -8,6 +8,7 @@ import {
   normalizePipConfig,
   normalizePlaylist,
   normalizeKeepAwake,
+  normalizeOrientation,
   normalizeScheduleRules,
   normalizeScrollConfig,
   normalizeTimingMode,
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
       pip: normalizePipConfig(body.pip),
       scroll: normalizeScrollConfig(body.scroll),
       keepAwake: normalizeKeepAwake(body.keepAwake),
+      orientation: normalizeOrientation(body.orientation),
       scheduleRules: normalizeScheduleRules(body.scheduleRules),
     };
 

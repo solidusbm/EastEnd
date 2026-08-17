@@ -7,6 +7,7 @@ import {
   normalizePipConfig,
   normalizePlaylist,
   normalizeKeepAwake,
+  normalizeOrientation,
   normalizeScheduleRules,
   normalizeScrollConfig,
   normalizeTimingMode,
@@ -84,6 +85,9 @@ export async function PUT(
     }
     if (body.keepAwake !== undefined) {
       screen.keepAwake = normalizeKeepAwake(body.keepAwake);
+    }
+    if (body.orientation !== undefined) {
+      screen.orientation = normalizeOrientation(body.orientation);
     }
     if (body.scheduleRules !== undefined) {
       screen.scheduleRules = normalizeScheduleRules(body.scheduleRules);

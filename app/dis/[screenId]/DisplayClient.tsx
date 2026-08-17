@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   IMAGE_TYPES,
+  isQuarterTurn,
   scrollAxis,
   type ImageRecord,
+  type Orientation,
   type ImageType,
   type PipConfig,
   type Screen,
@@ -225,6 +227,53 @@ function captionStyle(labelStyle: LabelStyle, scale: number): CSSProperties {
 }
 
 /**
+ * The rotating outer shell every display state renders inside.
+ *
+ * For the quarter turns the box is built at the swapped size (100vh wide by
+ * 100vw tall) and then rotated back over the viewport, so everything inside
+ * can keep laying itself out in ordinary, unrotated terms -- a portrait TV
+ * is simply a tall container as far as the rest of this file is concerned.
+ * The paired translate is what brings the rotated box back on-screen:
+ * rotating about the top-left corner alone would swing it entirely outside
+ * the viewport.
+ *
+ * Note this element is the `position: fixed` one; everything inside
+ * positions against it with `absolute`, since a transformed ancestor becomes
+ * the containing block for fixed descendants anyway.
+ */
+function DisplayFrame({
+  orientation,
+  children,
+}: {
+  orientation: Orientation;
+  children: React.ReactNode;
+}) {
+  let style: CSSProperties;
+  if (isQuarterTurn(orientation)) {
+    style = {
+      width: "100vh",
+      height: "100vw",
+      transformOrigin: "0 0",
+      transform:
+        orientation === 90
+          ? "rotate(90deg) translate(0, -100%)"
+          : "rotate(-90deg) translate(-100%, 0)",
+    };
+  } else {
+    style = {
+      width: "100vw",
+      height: "100vh",
+      transform: orientation === 180 ? "rotate(180deg)" : undefined,
+    };
+  }
+  return (
+    <div className="fixed left-0 top-0 overflow-hidden bg-black" style={style}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * How many copies of the image list to lay end to end: enough to cover the
  * screen plus one whole list-length of travel, since the strip is always
  * translated somewhere within that first list-length. The extra copy over
@@ -279,7 +328,19 @@ function ScrollingStrip({
       if (!el) return;
       const length = vertical ? el.offsetHeight : el.offsetWidth;
       setUnitLength(length);
-      setCopies(copiesNeeded(length, vertical ? window.innerHeight : window.innerWidth));
+      // Measure the strip's own container rather than the window: under a
+      // 90/270 orientation the frame's width and height are swapped relative
+      // to the viewport, so window.inner* would size the strip for the wrong
+      // axis and leave a gap.
+      const host = trackRef.current?.parentElement;
+      const viewport = host
+        ? vertical
+          ? host.clientHeight
+          : host.clientWidth
+        : vertical
+          ? window.innerHeight
+          : window.innerWidth;
+      setCopies(copiesNeeded(length, viewport));
     }
 
     measure();
@@ -516,38 +577,56 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
     setActiveLayer(nextActive);
   }
 
+  // Every state below renders inside the frame, so a sideways-mounted TV
+  // shows its "no images yet" message the right way up too, not just the
+  // rotation itself.
+  const orientation = data?.screen.orientation ?? 0;
+
   if (notFound) {
     return (
-      <Placeholder
-        title="Screen not configured"
-        subtitle={`No screen with id "${screenId}" exists yet. Create it in /admin.`}
-      />
+      <DisplayFrame orientation={orientation}>
+        <Placeholder
+          title="Screen not configured"
+          subtitle={`No screen with id "${screenId}" exists yet. Create it in /admin.`}
+        />
+      </DisplayFrame>
     );
   }
 
   if (!data) {
-    return <Placeholder title="Loading…" subtitle="" />;
+    return (
+      <DisplayFrame orientation={orientation}>
+        <Placeholder title="Loading…" subtitle="" />
+      </DisplayFrame>
+    );
   }
 
   if (data.emergencyOverride) {
-    return <EmergencyOverrideView override={data.emergencyOverride} />;
+    return (
+      <DisplayFrame orientation={orientation}>
+        <EmergencyOverrideView override={data.emergencyOverride} />
+      </DisplayFrame>
+    );
   }
 
   if (!currentUrl) {
     return (
-      <Placeholder
-        title={data.screen.name}
-        subtitle={
-          data.screen.timingMode === "fineGrain"
-            ? "No images in the playlist yet. Add some in /admin."
-            : "No images assigned to this screen yet. Add some in /admin."
-        }
-      />
+      <DisplayFrame orientation={orientation}>
+        <Placeholder
+          title={data.screen.name}
+          subtitle={
+            data.screen.timingMode === "fineGrain"
+              ? "No images in the playlist yet. Add some in /admin."
+              : "No images assigned to this screen yet. Add some in /admin."
+          }
+        />
+      </DisplayFrame>
     );
   }
 
   return (
-    <div className={`fixed inset-0 overflow-hidden bg-black ${LABEL_FONT_VARIABLES}`}>
+    <DisplayFrame orientation={orientation}>
+    <div className={`absolute inset-0 overflow-hidden bg-black ${LABEL_FONT_VARIABLES}`}>
       {scrollImages.length > 0 ? (
         <ScrollingStrip
           images={scrollImages}
@@ -632,13 +711,14 @@ export default function DisplayClient({ screenId }: { screenId: string }) {
         </div>
       )}
     </div>
+    </DisplayFrame>
   );
 }
 
 function EmergencyOverrideView({ override }: { override: DisplayOverride }) {
   if (override.imageUrl) {
     return (
-      <div className="fixed inset-0 overflow-hidden bg-black">
+      <div className="absolute inset-0 overflow-hidden bg-black">
         {isVideoFile(override.imageUrl) ? (
           <video
             ref={loadAndPlay}
@@ -663,7 +743,7 @@ function EmergencyOverrideView({ override }: { override: DisplayOverride }) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-8 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-8 text-center">
       <p className="max-w-3xl text-4xl font-semibold text-white">{override.message}</p>
     </div>
   );
@@ -671,7 +751,7 @@ function EmergencyOverrideView({ override }: { override: DisplayOverride }) {
 
 function Placeholder({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-8 text-center">
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 overflow-hidden bg-black px-8 text-center">
       <p className="text-2xl font-semibold text-zinc-300">{title}</p>
       {subtitle && <p className="max-w-lg text-sm text-zinc-500">{subtitle}</p>}
     </div>
